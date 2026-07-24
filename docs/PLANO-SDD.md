@@ -220,7 +220,15 @@ Decisão (usuário): **manter o saldo por competência como está** (padrão) e 
 Tasks a refinar: (1) cálculo de saldo de caixa por conta (entradas + gastos débito/dinheiro + `INVOICE_PAYMENT`, na data de cada lançamento); (2) endpoint de saldo por conta (as duas visões); (3) UI — saldo por conta (Configurações e/ou Dashboard) + a visão de caixa "agora vs. depois de pagar a fatura em aberto"; (4) testes; (5) verificação e2e.
 Pré-req: #25; roda melhor **depois da #27** (pra o saldo não somar contas/cartões arquivados de forma indevida — a confirmar no SDD).
 
-> Ordem: as sessões #27/#28 são refinamentos de produto que surgiram do uso real — **não alteram a ordem já combinada** (deploy #21 → #24 hardening → #22 Open Finance). Encaixar quando o usuário quiser; boa candidata a vir logo após o deploy, já que melhoram o dia a dia sem depender de infra nova.
+**#29 — Recuperação de senha por email ("esqueci minha senha")** 📋 PLANEJADA (decidido 2026-07-24) — **gap real de produção**: hoje, esquecendo a senha, o usuário fica trancado pra fora (não há fluxo de recuperação).
+Fluxo:
+- `POST /auth/forgot-password {email}` → **sempre 200** (anti-enumeração — não revela se o email existe). Se existir, gera token de reset **opaco (256 bits), guardado como hash SHA-256** numa nova tabela `password_reset_tokens` (single-use, expiry curto ~30–60 min) e envia email com link `https://poupito.com/redefinir-senha?token=...`.
+- `POST /auth/reset-password {token, newPassword}` → valida (não expirado, não usado), aplica a senha (BCrypt, mesma política ≥10 chars com letra+número), marca o token como usado e **revoga todos os refresh tokens** do usuário (força re-login em todo lugar — caso a conta estivesse comprometida).
+- **Rate limiting** no forgot-password (reusar `LoginRateLimiter` por IP+email) contra email-bombing/enumeração.
+Tasks a refinar: (1) migration `password_reset_tokens` + entidade/repository; (2) endpoints forgot/reset no `AuthController` + serviço (geração/validação/single-use/expiry/revogação); (3) **envio de email via AWS SES** (encaixa na infra AWS, barato ~US$0,10/1.000 emails) — requer verificar o domínio `poupito.com` (SPF/DKIM/DMARC) e **sair do sandbox do SES** (por padrão só manda pra emails verificados; pedir acesso de produção); template de email branded Poupito; (4) frontend — telas "Esqueci minha senha" (pede email) e "Redefinir senha" (token na URL + nova senha); (5) testes (API ≥90%, web ≥90/80/90/90) com envio de email **mockado**; (6) verificação e2e.
+Pré-req: nenhum técnico pro core — dá pra desenvolver com o envio de email **mockado/logado** e plugar o SES depois (o SES é a única parte que depende de infra/DNS). Alinha com o modelo de auth da sessão #S (tokens opacos + hash SHA-256 + rate limiting).
+
+> Ordem: #27/#28/#29 são melhorias que surgiram do uso real — **não alteram a ordem já combinada** (deploy #21 → #24 hardening → #22 Open Finance). Encaixar quando o usuário quiser; a **#29 (recuperação de senha)** é forte candidata a vir cedo, por ser um gap de acesso real já em produção. As #27/#28 melhoram o dia a dia sem depender de infra nova.
 
 ### Fase 5 — Futuro (sem sessão planejada ainda)
 
