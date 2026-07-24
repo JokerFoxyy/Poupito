@@ -31,6 +31,9 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
       COOKIE_SECURE: "true"
+      # Tuning pra instância pequena (Lightsail 1–2GB): GC e JIT enxutos gastam
+      # menos CPU/RAM — evita drenar o crédito de burst e brigar com o Postgres.
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=45 -XX:+UseSerialGC -Xss512k -XX:TieredStopAtLevel=1"
 
   web:
     image: ${WEB_IMAGE:-ghcr.io/jokerfoxyy/poupito-web:latest}
