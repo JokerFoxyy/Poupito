@@ -227,6 +227,7 @@ Fluxo:
 - **Rate limiting** no forgot-password (reusar `LoginRateLimiter` por IP+email) contra email-bombing/enumeração.
 Tasks a refinar: (1) migration `password_reset_tokens` + entidade/repository; (2) endpoints forgot/reset no `AuthController` + serviço (geração/validação/single-use/expiry/revogação); (3) **envio de email via AWS SES** (encaixa na infra AWS, barato ~US$0,10/1.000 emails) — requer verificar o domínio `poupito.com` (SPF/DKIM/DMARC) e **sair do sandbox do SES** (por padrão só manda pra emails verificados; pedir acesso de produção); template de email branded Poupito; (4) frontend — telas "Esqueci minha senha" (pede email) e "Redefinir senha" (token na URL + nova senha); (5) testes (API ≥90%, web ≥90/80/90/90) com envio de email **mockado**; (6) verificação e2e.
 Pré-req: nenhum técnico pro core — dá pra desenvolver com o envio de email **mockado/logado** e plugar o SES depois (o SES é a única parte que depende de infra/DNS). Alinha com o modelo de auth da sessão #S (tokens opacos + hash SHA-256 + rate limiting).
+Setup do SES documentado em `D:/Docs/Poupito/setup-ses-email.md` (fora do repo): verificação de domínio + DKIM na Cloudflare, SPF/DMARC, credenciais SMTP e saída do sandbox.
 
 > Ordem atual (2026-07-24): **#29 (recuperação de senha) → #24 (hardening) → #22 (Open Finance)**, com **#27/#28** (arquivar / saldo por conta) encaixando quando o usuário quiser. A #29 foi puxada pra frente por ser um gap de acesso real já em produção.
 
