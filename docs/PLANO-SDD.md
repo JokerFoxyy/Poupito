@@ -166,9 +166,9 @@ Pré-req: #4 + MVP estável (recomendado após #12).
 
 ### Fase 4 — Hardening & Open Finance
 
-> **Ordem de execução (decisão do usuário, 2026-07-22): #26 → #24 → #22.** Primeiro o bugfix #26 (contas dessincronizadas na UI — pode rodar já, independe do deploy), depois #24 (observabilidade/hardening, precisa do deploy) e só então #22 (Open Finance). A #24 vem **antes** da #22 de propósito: a observabilidade existe em parte pra suportar o job de sync do Open Finance.
+> **Ordem de execução (atualizada 2026-07-24): #26 ✅ → #29 → #24 → #22.** O bugfix #26 (contas dessincronizadas) já foi. A **próxima é a #29 (recuperação de senha)** — decisão do usuário de priorizar, por ser um gap de acesso real em produção. Depois #24 (observabilidade/hardening) e só então #22 (Open Finance). A #24 vem **antes** da #22 de propósito: a observabilidade existe em parte pra suportar o job de sync do Open Finance. As #27/#28 (arquivar / saldo por conta) encaixam quando o usuário quiser.
 
-**#24 — Observabilidade + Hardening contra exaustão** 🔜 próxima sessão formal da Fase 4 (roda **antes** da #22 — decisão do usuário; a refinar quando a Fase 3 terminar, mesma lógica da sessão #S)
+**#24 — Observabilidade + Hardening contra exaustão** 📋 PLANEJADA (roda **antes** da #22 — decisão do usuário; a refinar quando a Fase 3 terminar, mesma lógica da sessão #S)
 Ideia inicial: hoje só `actuator/health`/`info` estão expostos e só login/registro tem rate limiting (`LoginRateLimiter`, por IP+email) — o resto da API (transações, export, import) não tem limite nenhum, e a instância Lightsail de 1GB é um alvo fácil de exaustão assim que ficar pública. Motivador direto: o job de sincronização periódica do Open Finance (#22) é exatamente o tipo de coisa que falha silenciosamente sem observabilidade — melhor ter isso pronto antes.
 Tasks a refinar: (1) logs estruturados (JSON) por nível, com foco em eventos de segurança (falha de login, hits no rate limiter, 401/429, 5xx); (2) exportar esses logs pra **CloudWatch** (fora da instância — sobrevive a um comprometimento onde o atacante apaga logs locais) com retenção curta (30-90 dias) pra controlar custo, mais um **CloudWatch Alarm** simples (ex.: pico de tentativas de login falhas) notificando por email; (3) rate limiting geral na API (não só auth) — provavelmente via módulo de rate limit do Caddy ou filtro genérico no Spring, com limite mais agressivo nos endpoints caros (export xlsx via Apache POI, import de planilha); (4) **Cloudflare gratuito** na frente da instância — proteção DDoS básica + rate limiting na borda antes mesmo de chegar no Lightsail, mais barato/efetivo que construir tudo na aplicação; (5) revisar limites de connection pool (HikariCP) e threads (Tomcat) pra não estourar a RAM da instância sob carga; (6) verificação: simular rajada de requisições e confirmar que a aplicação se protege sem cair.
 Pré-req: #21 (precisa da instância real rodando em produção pra fazer sentido testar isso de verdade).
@@ -220,11 +220,64 @@ Decisão (usuário): **manter o saldo por competência como está** (padrão) e 
 Tasks a refinar: (1) cálculo de saldo de caixa por conta (entradas + gastos débito/dinheiro + `INVOICE_PAYMENT`, na data de cada lançamento); (2) endpoint de saldo por conta (as duas visões); (3) UI — saldo por conta (Configurações e/ou Dashboard) + a visão de caixa "agora vs. depois de pagar a fatura em aberto"; (4) testes; (5) verificação e2e.
 Pré-req: #25; roda melhor **depois da #27** (pra o saldo não somar contas/cartões arquivados de forma indevida — a confirmar no SDD).
 
-> Ordem: as sessões #27/#28 são refinamentos de produto que surgiram do uso real — **não alteram a ordem já combinada** (deploy #21 → #24 hardening → #22 Open Finance). Encaixar quando o usuário quiser; boa candidata a vir logo após o deploy, já que melhoram o dia a dia sem depender de infra nova.
+**#29 — Recuperação de senha por email ("esqueci minha senha")** 🔜 PRÓXIMA (priorizada pelo usuário 2026-07-24) — **gap real de produção**: hoje, esquecendo a senha, o usuário fica trancado pra fora (não há fluxo de recuperação).
+Fluxo:
+- `POST /auth/forgot-password {email}` → **sempre 200** (anti-enumeração — não revela se o email existe). Se existir, gera token de reset **opaco (256 bits), guardado como hash SHA-256** numa nova tabela `password_reset_tokens` (single-use, expiry curto ~30–60 min) e envia email com link `https://poupito.com/redefinir-senha?token=...`.
+- `POST /auth/reset-password {token, newPassword}` → valida (não expirado, não usado), aplica a senha (BCrypt, mesma política ≥10 chars com letra+número), marca o token como usado e **revoga todos os refresh tokens** do usuário (força re-login em todo lugar — caso a conta estivesse comprometida).
+- **Rate limiting** no forgot-password (reusar `LoginRateLimiter` por IP+email) contra email-bombing/enumeração.
+Tasks a refinar: (1) migration `password_reset_tokens` + entidade/repository; (2) endpoints forgot/reset no `AuthController` + serviço (geração/validação/single-use/expiry/revogação); (3) **envio de email via AWS SES** (encaixa na infra AWS, barato ~US$0,10/1.000 emails) — requer verificar o domínio `poupito.com` (SPF/DKIM/DMARC) e **sair do sandbox do SES** (por padrão só manda pra emails verificados; pedir acesso de produção); template de email branded Poupito; (4) frontend — telas "Esqueci minha senha" (pede email) e "Redefinir senha" (token na URL + nova senha); (5) testes (API ≥90%, web ≥90/80/90/90) com envio de email **mockado**; (6) verificação e2e.
+Pré-req: nenhum técnico pro core — dá pra desenvolver com o envio de email **mockado/logado** e plugar o SES depois (o SES é a única parte que depende de infra/DNS). Alinha com o modelo de auth da sessão #S (tokens opacos + hash SHA-256 + rate limiting).
+Setup do SES documentado em `D:/Docs/Poupito/setup-ses-email.md` (fora do repo): verificação de domínio + DKIM na Cloudflare, SPF/DMARC, credenciais SMTP e saída do sandbox.
+
+> Ordem atual (2026-07-24): **#29 (recuperação de senha) → #24 (hardening) → #22 (Open Finance)**, com **#27/#28** (arquivar / saldo por conta) encaixando quando o usuário quiser. A #29 foi puxada pra frente por ser um gap de acesso real já em produção.
 
 ### Fase 5 — Futuro (sem sessão planejada ainda)
 
-Multi-tenancy real, plano free/pago, cotações via brapi.dev, app mobile consumindo a mesma API, feature "a receber/emprestado" (contas mãe).
+Ideias soltas: Multi-tenancy real, plano free/pago, cotações via brapi.dev, app mobile consumindo a mesma API, feature "a receber/emprestado" (contas mãe).
+
+#### Escala / virar SaaS — tenancy, migrações e infra (nota de arquitetura, 2026-07-24)
+
+**Tenancy:** o app já nasce no modelo **pool** (shared DB + shared schema, tudo escopado por `user_id`) — o certo pra B2C. Virar SaaS **não exige reprojetar o domínio**; as migrations continuam sendo **uma execução de Flyway por deploy**. Alternativas (schema-per-tenant / db-per-tenant) só compensam pra isolamento enterprise/regulado, com custo operacional bem maior.
+
+**Migrações em escala (o que muda é o *processo*, não os arquivos):**
+- **Expand → migrate → contract:** migration aditiva compatível com a versão *antiga* do app durante o rolling deploy; limpeza (`DROP`/`RENAME`) só num deploy posterior. Uma migration nunca pode quebrar o app que ainda está no ar.
+- **Tirar o Flyway do boot da API** e rodar como **passo separado do pipeline** (job/init antes de subir as réplicas) — evita corrida entre N instâncias.
+- **Evitar locks em tabela grande:** `CREATE INDEX CONCURRENTLY`, coluna nullable + backfill em lotes (nunca `UPDATE` gigante que trava a tabela).
+- **Postgres gerenciado** (RDS/Aurora) com PITR/snapshots/réplicas — rede de segurança pra migrar em produção.
+- **(dado financeiro) Postgres RLS** como defesa-em-profundidade: políticas no banco garantem isolamento por tenant mesmo se um bug na app esquecer o `where user_id`.
+
+**Migração dos dados existentes (Lightsail → RDS) — NÃO confundir com migration do Flyway:** "migration do Flyway" versiona o *schema* (V1..V12); "migração de dados" move as *linhas* dos usuários de um Postgres pro outro. O RDS sobe vazio e você copia o banco pra dentro dele.
+- **Método pro tamanho atual (`pg_dump` + `pg_restore`, janela de manutenção de poucos minutos):**
+  1. RDS vazio, mesma versão major (16); liberar rede (ver pegadinha abaixo).
+  2. Congelar escritas: `docker compose stop api`.
+  3. Dump: `docker exec poupito-postgres-prod pg_dump -U poupito -d poupito -Fc > poupito.dump`
+  4. Restore: `pg_restore -h <endpoint-rds> -U <master> -d poupito --no-owner --no-privileges poupito.dump`
+  5. Apontar a API pro RDS (`DB_HOST`/`DB_URL`/`DB_USER`/`DB_PASSWORD` no `.env`), tirar o container `postgres` do compose, `docker compose up -d api`.
+  6. Validar (login + dados); só então desativar o Postgres local. **Rollback:** apontar a API de volta enquanto o dado antigo existir.
+- O dump leva a `flyway_schema_history` junto → o RDS já nasce no V12 e o **Flyway não re-roda nada** (schema + dados chegam prontos).
+- **Zero-downtime (quando houver tráfego que não pode cair):** trocar o dump por replicação contínua — **AWS DMS** (carga inicial + CDC das mudanças, cutover instantâneo) ou logical replication nativa do Postgres.
+- **Pegadinha de rede:** o Lightsail fica numa VPC separada da VPC padrão do RDS — por padrão não se enxergam. Habilitar **VPC peering** (Console → Account → Advanced) ou já rodar a compute (EC2/ECS) na mesma VPC do RDS.
+
+**Infra nova necessária (além do deploy atual de 1 VM Lightsail):**
+- **Postgres gerenciado** (sai da VM) — RDS/Aurora.
+- **Compute dedicada** pra API (sai do burstable) — ECS Fargate ou EC2 não-burst; 2+ réplicas pra HA.
+- **Load balancer (ALB)** na frente das réplicas + TLS.
+- **Frontend estático** → S3 + CloudFront (em vez do Caddy servir o build).
+- **Observabilidade** (CloudWatch — já é a #24) + **Secrets Manager**.
+- CI/CD já publica imagens (GHCR); adicionar o passo de migração no pipeline.
+
+**Custos aproximados (referência us-east-1, variam bastante):**
+
+| Item | Hoje (uso pessoal) | SaaS mínimo com HA |
+|---|---|---|
+| Compute (API) | Lightsail US$5–10/mês (tudo junto) | Fargate/EC2 ~US$35–80/mês (1–2 réplicas) |
+| Postgres | na mesma VM (grátis) | RDS `t4g.small` ~US$25–30 (single-AZ) / ~US$50–60 (Multi-AZ HA) + storage ~US$0,12/GB |
+| Load balancer | Caddy (grátis) | ALB ~US$16–20/mês + tráfego |
+| Frontend | Caddy serve o estático | S3+CloudFront ~US$1–5/mês |
+| Observabilidade/Secrets | — | CloudWatch + Secrets Manager ~US$5–15/mês |
+| **Total aprox.** | **~US$10/mês** | **~US$90–180/mês** (piso; escala com tenants/tráfego) |
+
+O salto de "app pessoal" pra "SaaS com HA" é de ~US$10 pra ~US$100+/mês só de infra base — faz sentido **só quando houver tração/receita**. Enquanto é pessoal, a VM única no Lightsail (2GB) está perfeita. *Aurora Serverless v2* é uma alternativa elástica (paga pelo uso), mas tem piso ~US$40+/mês se ficar sempre ligado. Região `sa-east-1` (São Paulo) costuma ser ~15–30% mais cara que `us-east-1`.
 
 ## 6. Grafo de dependências (resumo)
 
