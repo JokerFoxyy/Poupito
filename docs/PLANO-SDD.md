@@ -236,11 +236,27 @@ Tasks a refinar: (1) migration `password_reset_tokens` + entidade/repository; (2
 Pré-req: nenhum técnico pro core — dá pra desenvolver com o envio de email **mockado/logado** e plugar o SES depois (o SES é a única parte que depende de infra/DNS). Alinha com o modelo de auth da sessão #S (tokens opacos + hash SHA-256 + rate limiting).
 Setup do SES documentado em `D:/Docs/Poupito/setup-ses-email.md` (fora do repo): verificação de domínio + DKIM na Cloudflare, SPF/DMARC, credenciais SMTP e saída do sandbox.
 
-> Ordem atual (2026-07-24): **#29 (recuperação de senha) → #24 (hardening) → #22 (Open Finance)**, com **#27/#28** (arquivar / saldo por conta) encaixando quando o usuário quiser. A #29 foi puxada pra frente por ser um gap de acesso real já em produção.
+**#30 — Template de import da planilha (download do modelo compatível)** 📋 PLANEJADA (sessão **pequena e separada**, decidida com o usuário 2026-07-25) — **encaixa cedo** (independe do deploy e de #24/#22)
+Motivação: o importador (#12) lê a Planilha_Gastos_2026 em **posições fixas de linha/coluna** nas 12 abas mensais (seções Fixos/Cartão/Gastos do Mês/Entradas — ver `docs/session-12-import-planilha/SDD.md`). Quem não tiver exatamente esse layout (ou for começar do zero) não consegue importar de forma fiel. Falta um **modelo oficial para baixar** que já venha no formato exato que o parser espera.
+Decisão (usuário): oferecer um **template .xlsx para download** que espelhe 1:1 o que o import consome — mesmas abas, mesmos cabeçalhos, mesmas posições de seção — com uma **aba de instruções/legenda** (o que preencher em cada bloco, uma linha de exemplo realista) para o preenchimento sair alinhado ao parser. Escopo enxuto: é gerar/servir o arquivo + link na tela de Import, **não** mexe na regra de parsing.
+Tasks a refinar: (1) gerar o template com Apache POI (mesmas abas/posições do `SpreadsheetParser`; aba "Como preencher" com legenda + linha de exemplo) — idealmente derivado das **mesmas constantes de posição** do parser pra não divergir com o tempo; (2) endpoint `GET /v1/import/template` (download .xlsx) + botão "Baixar modelo" na tela de Import; (3) testes (o template gerado passa pelo próprio `preview` sem linhas "não mapeadas" inesperadas — teste de ida e volta) + verificação e2e (baixar, preencher o exemplo, reimportar). Meta de cobertura padrão (API ≥90%, web ≥90/80/90/90).
+Pré-req: #12 (parser) e #25 (mapeamento de cartão no import). Pode rodar assim que o usuário quiser — não depende da infra.
+
+**#31 — Empréstimos a pessoas / "a receber" (dívidas de terceiros com você)** 📋 PLANEJADA (formaliza a antiga ideia "contas mãe / a receber", decidida com o usuário 2026-07-25) — sessão **maior** (entidade + fluxo novos)
+Motivação: hoje não dá pra registrar dinheiro que **você emprestou** a alguém. Emprestar sai do seu bolso (afeta seu saldo real), mas não é "gasto" — é um **ativo a receber**; e falta um lugar pra consultar, por pessoa, **quanto te devem** e acompanhar o recebimento (inclusive parcelado) mês a mês.
+Decisões a fechar com o usuário no SDD (proposta inicial):
+- **Entidade `Person`/contato** (nome; escopada por usuário) pra agrupar os empréstimos e ver o total por pessoa.
+- **Empréstimo (`loan`)**: valor, data, pessoa, conta de origem (de onde o dinheiro saiu), e opção de **parcelamento do recebimento** (N parcelas mensais esperadas, como se fosse o inverso de uma compra parcelada — cronograma do que a pessoa deve te pagar).
+- **Efeito no saldo (a decidir — recomendação):** emprestar **reduz o caixa da conta de origem** (dinheiro saiu de verdade) mas **não** conta como *gasto* nas agregações de despesa/orçamento (não é consumo, é um ativo). Ao **receber de volta** (total ou parcela), entra na conta e **abate o saldo devedor** da pessoa — sem virar "receita/entrada" de renda (é devolução de capital, não ganho). Alinha com a lógica de "regime de caixa vs. competência" da #28 e com o tratamento de `INVOICE_PAYMENT` (movimenta caixa sem duplicar como gasto).
+- **Visão de consulta:** tela/painel "A receber" com **total emprestado por pessoa**, quanto já foi devolvido, **saldo em aberto** e o **cronograma mensal** (o que cada pessoa deve te pagar em cada mês) — o "quanto a pessoa te deve todo mês" que o usuário pediu.
+Tasks a refinar: (1) migration (`persons` + `loans` + `loan_repayments`, ou reuso de `transactions` com tipos novos `LOAN_OUT`/`LOAN_REPAYMENT` — decidir modelagem no SDD, pesando integração com o saldo de caixa da #28); (2) CRUD de pessoas e empréstimos + registrar recebimento (parcela/total); (3) cálculo de saldo devedor por pessoa + cronograma mensal + integração com saldo de caixa (afetar conta sem contar como gasto); (4) UI "A receber" (por pessoa, aberto vs. recebido, agenda do mês) + lançamento de empréstimo/recebimento; (5) testes (API ≥90%, web ≥90/80/90/90) + verificação e2e.
+Pré-req: #25 (modelo conta/cartão); casa melhor **depois da #28** (reusa o conceito de saldo de caixa por conta pra o empréstimo debitar a conta sem virar gasto). A confirmar no SDD se antecipa ou espera a #28.
+
+> Ordem atual (2026-07-25): **#29 (recuperação de senha) → #24 (hardening) → #22 (Open Finance)**, com **#27/#28** (arquivar / saldo por conta), **#30** (template de import — pequena, encaixa cedo) e **#31** (empréstimos "a receber" — melhor após #28) encaixando quando o usuário quiser. A #29 foi puxada pra frente por ser um gap de acesso real já em produção.
 
 ### Fase 5 — Futuro (sem sessão planejada ainda)
 
-Ideias soltas: Multi-tenancy real, plano free/pago, cotações via brapi.dev, app mobile consumindo a mesma API, feature "a receber/emprestado" (contas mãe).
+Ideias soltas: Multi-tenancy real, plano free/pago, cotações via brapi.dev, app mobile consumindo a mesma API. *(A feature "a receber/emprestado — contas mãe" virou a sessão #31, formalizada acima.)*
 
 #### Escala / virar SaaS — tenancy, migrações e infra (nota de arquitetura, 2026-07-24)
 
@@ -303,5 +319,5 @@ Sessões #13–#16 (investimentos) podem rodar em paralelo com a Fase 1 a partir
 ## 7. Decisões em aberto (herdadas da spec)
 
 - Categoria "Itaú" da planilha mistura conta com categoria → no import (#12), mapear cartão como conta e pedir categoria real.
-- "Contas mãe" (empréstimos a familiares) → avaliar feature "a receber" na Fase 3/4.
+- ~~"Contas mãe" (empréstimos a familiares) → avaliar feature "a receber" na Fase 3/4.~~ **Resolvido:** virou a sessão **#31 — Empréstimos a pessoas / "a receber"** (a refinar no SDD; decisões de modelagem e efeito no saldo já esboçadas lá).
 - Keycloak em vez de JWT próprio se SSO for necessário no futuro (migração possível sem quebrar a API).
