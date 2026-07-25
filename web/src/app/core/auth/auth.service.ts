@@ -35,6 +35,16 @@ export class AuthService {
       .pipe(tap((user) => this.markAuthenticated(user)));
   }
 
+  /** Solicita o link de redefinição. Resposta 204 sempre (anti-enumeração — não revela o email). */
+  forgotPassword(email: string): Observable<void> {
+    return this.http.post<void>(`${API}/forgot-password`, { email });
+  }
+
+  /** Redefine a senha com o token recebido por email. */
+  resetPassword(token: string, newPassword: string): Observable<void> {
+    return this.http.post<void>(`${API}/reset-password`, { token, newPassword });
+  }
+
   loadCurrentUser(): Observable<UserResponse> {
     return this.http
       .get<UserResponse>(`${API}/me`)

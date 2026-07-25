@@ -38,7 +38,7 @@ class InvoiceFlowIntegrationTest {
 	@BeforeEach
 	void setUp() throws Exception {
 		ResponseEntity<String> register = rest.postForEntity("/v1/auth/register",
-				Map.of("email", "fatura-" + UUID.randomUUID() + "@poupito.com", "password", "senha-forte-123"),
+				Map.of("email", "fatura-" + UUID.randomUUID() + "@poupito.com", "password", "Senha-Forte-123"),
 				String.class);
 		headers = AuthTestSupport.bearer(register);
 		String accountId = idOf(post("/v1/accounts", Map.of("name", "Nubank Conta", "type", "CHECKING")));
@@ -74,7 +74,7 @@ class InvoiceFlowIntegrationTest {
 		purchase("100.00", "2026-07-15");
 		String invoiceId = openInvoiceId();
 
-		// fecha declarando 150 → gera ajuste de 50
+		// fecha declarando 150 â†’ gera ajuste de 50
 		JsonNode closed = objectMapper.readTree(rest.exchange("/v1/invoices/" + invoiceId + "/close",
 				HttpMethod.POST, new HttpEntity<>(Map.of("declaredTotal", "150.00"), headers), String.class)
 				.getBody());
@@ -82,7 +82,7 @@ class InvoiceFlowIntegrationTest {
 		assertThat(closed.get("invoice").get("launchedTotal").asDouble()).isEqualTo(100.0);
 		assertThat(closed.get("invoice").get("adjustment").asDouble()).isEqualTo(50.0);
 
-		// detalha mais 30 → ajuste cai para 20 (recalculado ao abrir o detalhe)
+		// detalha mais 30 â†’ ajuste cai para 20 (recalculado ao abrir o detalhe)
 		purchase("30.00", "2026-07-16");
 		JsonNode detail = objectMapper.readTree(get("/v1/invoices/" + invoiceId).getBody());
 		assertThat(detail.get("invoice").get("launchedTotal").asDouble()).isEqualTo(130.0);
@@ -101,7 +101,7 @@ class InvoiceFlowIntegrationTest {
 		rest.exchange("/v1/invoices/" + invoiceId + "/close", HttpMethod.POST,
 				new HttpEntity<>(Map.of("declaredTotal", "150.00"), headers), String.class);
 
-		// detalha exatamente os 50 que faltavam → ajuste some
+		// detalha exatamente os 50 que faltavam â†’ ajuste some
 		purchase("50.00", "2026-07-16");
 		JsonNode detail = objectMapper.readTree(get("/v1/invoices/" + invoiceId).getBody());
 

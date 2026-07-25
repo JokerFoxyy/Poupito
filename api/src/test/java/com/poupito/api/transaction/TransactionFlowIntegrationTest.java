@@ -42,7 +42,7 @@ class TransactionFlowIntegrationTest {
 	void setUp() throws Exception {
 		String email = "trans-" + UUID.randomUUID() + "@poupito.com";
 		ResponseEntity<String> register = rest.postForEntity("/v1/auth/register",
-				Map.of("email", email, "password", "senha-forte-123"), String.class);
+				Map.of("email", email, "password", "Senha-Forte-123"), String.class);
 		headers = AuthTestSupport.bearer(register);
 
 		checkingId = idOf(post("/v1/accounts", Map.of("name", "Uniclass", "type", "CHECKING")));
@@ -50,7 +50,7 @@ class TransactionFlowIntegrationTest {
 		cardId = idOf(post("/v1/cards",
 				Map.of("name", "Nubank", "accountId", cardAccountId, "closingDay", 28, "dueDay", 7)));
 		expenseCategoryId = idOf(post("/v1/categories", Map.of("name", "Mercado", "kind", "EXPENSE")));
-		incomeCategoryId = idOf(post("/v1/categories", Map.of("name", "Salário", "kind", "INCOME")));
+		incomeCategoryId = idOf(post("/v1/categories", Map.of("name", "SalÃ¡rio", "kind", "INCOME")));
 	}
 
 	private ResponseEntity<String> post(String url, Map<String, ?> body) {
@@ -89,7 +89,7 @@ class TransactionFlowIntegrationTest {
 
 	@Test
 	void shouldLinkCardPurchasesToCorrectInvoices_whenDatesCrossClosingDay() throws Exception {
-		// antes do fechamento (dia 28) → fatura de julho; no dia do fechamento → fatura de agosto
+		// antes do fechamento (dia 28) â†’ fatura de julho; no dia do fechamento â†’ fatura de agosto
 		ResponseEntity<String> before = post("/v1/transactions",
 				cardTransaction("Compra antes", "100.00", "2026-07-27", "EXPENSE", cardId, expenseCategoryId));
 		ResponseEntity<String> onClosing = post("/v1/transactions",
@@ -112,8 +112,8 @@ class TransactionFlowIntegrationTest {
 	@Test
 	void shouldFilterByMonthAccountAndCategory_whenSearching() throws Exception {
 		post("/v1/transactions", transaction("Julho corrente", "10.00", "2026-07-05", "EXPENSE", checkingId, expenseCategoryId));
-		post("/v1/transactions", cardTransaction("Julho cartão", "20.00", "2026-07-06", "EXPENSE", cardId, expenseCategoryId));
-		post("/v1/transactions", transaction("Salário julho", "5000.00", "2026-07-01", "INCOME", checkingId, incomeCategoryId));
+		post("/v1/transactions", cardTransaction("Julho cartÃ£o", "20.00", "2026-07-06", "EXPENSE", cardId, expenseCategoryId));
+		post("/v1/transactions", transaction("SalÃ¡rio julho", "5000.00", "2026-07-01", "INCOME", checkingId, incomeCategoryId));
 		post("/v1/transactions", transaction("Junho", "30.00", "2026-06-15", "EXPENSE", checkingId, expenseCategoryId));
 
 		JsonNode july = objectMapper.readTree(get("/v1/transactions?month=2026-07").getBody());
@@ -122,7 +122,7 @@ class TransactionFlowIntegrationTest {
 		JsonNode julyCard = objectMapper.readTree(
 				get("/v1/transactions?month=2026-07&cardId=" + cardId).getBody());
 		assertThat(julyCard.get("totalElements").asLong()).isEqualTo(1);
-		assertThat(julyCard.get("content").get(0).get("description").asText()).isEqualTo("Julho cartão");
+		assertThat(julyCard.get("content").get(0).get("description").asText()).isEqualTo("Julho cartÃ£o");
 
 		JsonNode julyIncome = objectMapper.readTree(
 				get("/v1/transactions?month=2026-07&type=INCOME").getBody());
@@ -190,7 +190,7 @@ class TransactionFlowIntegrationTest {
 	@Test
 	void shouldReturn400_whenInstallmentsRequestedForIncome() {
 		ResponseEntity<String> response = post("/v1/transactions", Map.of(
-				"description", "Salário", "amount", "1000.00", "date", "2026-07-09", "type", "INCOME",
+				"description", "SalÃ¡rio", "amount", "1000.00", "date", "2026-07-09", "type", "INCOME",
 				"accountId", checkingId, "categoryId", incomeCategoryId, "installments", 3));
 
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
@@ -221,7 +221,7 @@ class TransactionFlowIntegrationTest {
 	@Test
 	void shouldExportCsv_withOnlyFilteredTransactions() throws Exception {
 		post("/v1/transactions", transaction("Padaria", "31.73", "2026-07-05", "EXPENSE", checkingId, expenseCategoryId));
-		post("/v1/transactions", transaction("Salário", "5000.00", "2026-07-01", "INCOME", checkingId, incomeCategoryId));
+		post("/v1/transactions", transaction("SalÃ¡rio", "5000.00", "2026-07-01", "INCOME", checkingId, incomeCategoryId));
 
 		ResponseEntity<byte[]> response = rest.exchange(
 				"/v1/transactions/export?month=2026-07&type=EXPENSE", HttpMethod.GET,
@@ -231,7 +231,7 @@ class TransactionFlowIntegrationTest {
 		assertThat(response.getHeaders().getContentDisposition().getFilename()).isEqualTo("transacoes-2026-07.csv");
 		String csv = new String(response.getBody(), java.nio.charset.StandardCharsets.UTF_8);
 		assertThat(csv).contains("Padaria");
-		assertThat(csv).doesNotContain("Salário");
+		assertThat(csv).doesNotContain("SalÃ¡rio");
 	}
 
 	@Test

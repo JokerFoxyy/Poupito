@@ -215,7 +215,7 @@ Separa "onde o dinheiro vive" (conta) de "instrumento de pagamento" (cartão). M
 - Backup: `infra/scripts/backup.sh` (pg_dump → gzip → S3, cron no host) com lifecycle de 30 dias no bucket (`configure-s3-lifecycle.sh`, roda uma vez). Swap de 2GB e clone do repo: `infra/scripts/setup-host.sh` (roda uma vez na instância nova).
 - Passo a passo completo (domínio, DNS, criação da instância, secrets) em `infra/README.md` — são passos manuais que só o usuário pode executar (conta AWS, pagamento, DNS).
 
-## Auth & Segurança (sessões #2 e #S)
+## Auth & Segurança (sessões #2, #S e #29)
 
 **Modelo de sessão (reescrito na #S):** cookies httpOnly, não JWT no localStorage.
 - `POST /api/v1/auth/register` (201) e `/login` (200) setam **dois cookies httpOnly + SameSite=Strict** (`poupito_at` = access JWT 15min; `poupito_rt` = refresh opaco 30d) e retornam só `{id,email}` — **nunca o token no corpo**.
@@ -224,7 +224,13 @@ Separa "onde o dinheiro vive" (conta) de "instrumento de pagamento" (cartão). M
 - Refresh token: opaco (256 bits), guardado **como hash SHA-256** em `refresh_tokens`, rotacionado a cada uso, revogável. HS256 do access token assinado com `JWT_SECRET`.
 - **Frontend:** sem token em JS. `AuthService` guarda só a flag booleana `poupito.authed` (roteamento); interceptor manda `withCredentials` e, em 401, tenta `/refresh` uma vez e repete a requisição, senão desloga.
 
-**Hardening:** rate limiting em login/register (429; `LoginRateLimiter` in-memory por IP+email); BCrypt strength 12; senha exige ≥10 chars com letra e número; `SecretsValidator` **falha o startup em profile `prod`** se `JWT_SECRET`/`DB_PASSWORD` forem os defaults de dev; security headers (frame deny, referrer, HSTS); Swagger/api-docs desligados em prod (`application-prod.yml`, `cookie-secure: true`).
+**Hardening:** rate limiting em login/register (429; `LoginRateLimiter` in-memory por IP+email); **lockout por conta** (`LoginAttemptLimiter`, 5 falhas de login → 5 min, reseta no sucesso, 429 com `Retry-After`; sessão #29); BCrypt strength 12; `SecretsValidator` **falha o startup em profile `prod`** se `JWT_SECRET`/`DB_PASSWORD` forem os defaults de dev; security headers (frame deny, referrer, HSTS); Swagger/api-docs desligados em prod (`application-prod.yml`, `cookie-secure: true`).
+
+**Política de senha (sessão #29):** validador `@StrongPassword` (`common/validation/`) — **≥12 chars com maiúscula + minúscula + número + símbolo** — aplicado em `RegisterRequest` e `ResetPasswordRequest`. **`LoginRequest` continua só `@NotBlank`**: senhas antigas (regime ≥10) seguem logando; login valida contra o hash BCrypt, nunca contra a política (sem migração/rehash). No front, o validador `strongPassword` (`core/auth/password.validator.ts`) espelha a regra; a **dica de política só aparece onde se DEFINE senha (cadastro/redefinir), nunca no login**; toggle "mostrar senha" (olho) nos três formulários.
+
+**Recuperação de senha (sessão #29):** `POST /auth/forgot-password {email}` → **sempre 204** (anti-enumeração — não revela se o email existe); se existir, emite token de reset **opaco (256 bits) guardado como hash SHA-256** em `password_reset_tokens` (migration **V13**, single-use, expiry `app.password-reset.ttl` PT30M, invalida anteriores) e envia email com link `${app.frontend.reset-url-base}?token=...`. `POST /auth/reset-password {token,newPassword}` → consome o token, aplica a senha forte e **revoga todos os refresh tokens** (`revokeAllForUser` — re-login em todo lugar); token inválido/expirado/usado → **400**. Ambos públicos no `SecurityConfig` + rate limit no forgot. Front: telas `/esqueci-senha` e `/redefinir-senha` (token na query).
+
+**Email (`email/` package, sessão #29):** interface `EmailSender` selecionada por `app.mail.enabled` — `LoggingEmailSender` (default: loga o link, dev/test/prod-sem-SES) ou `SmtpEmailSender` (AWS SES via `spring.mail.*`, só quando `enabled=true`). `PasswordResetMailer` monta o email branded. Testes mockam `EmailSender`. Setup do SES (fora do repo): `D:/Docs/Poupito/setup-ses-email.md`. Dependência `spring-boot-starter-mail`.
 
 **CSRF:** desabilitado de propósito — a defesa é o cookie `SameSite=Strict` (não vai em requisição cross-site) numa API JSON same-origin. Modelo de ameaças STRIDE completo mantido fora do repo público (não expor mapa de ataque em app financeiro com usuários reais), em `D:\Docs\Poupito\threat-model-stride.md`.
 

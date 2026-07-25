@@ -43,6 +43,11 @@ public class User {
 		}
 	}
 
+	/** Substitui o hash da senha (redefinição de senha — sessão #29). */
+	public void changePassword(String newPasswordHash) {
+		this.passwordHash = newPasswordHash;
+	}
+
 	public UUID getId() {
 		return id;
 	}

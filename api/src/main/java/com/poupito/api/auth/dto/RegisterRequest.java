@@ -1,15 +1,11 @@
 package com.poupito.api.auth.dto;
 
+import com.poupito.api.common.validation.StrongPassword;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public record RegisterRequest(
 		@NotBlank @Email @Size(max = 254) String email,
-		@NotBlank
-		@Size(min = 10, max = 100)
-		@Pattern(regexp = "^(?=.*[A-Za-z])(?=.*\\d).+$",
-				message = "A senha deve ter ao menos 10 caracteres, incluindo letra e número")
-		String password) {
+		@NotBlank @StrongPassword String password) {
 }

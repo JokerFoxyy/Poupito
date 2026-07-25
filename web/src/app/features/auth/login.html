@@ -18,12 +18,21 @@
         }
       </div>
 
-      <div class="field">
+      <div class="field password-field">
         <label for="password">Senha</label>
-        <input id="password" type="password" formControlName="password"
+        <input id="password" [type]="showPassword() ? 'text' : 'password'" formControlName="password"
                [autocomplete]="mode() === 'login' ? 'current-password' : 'new-password'" />
+        <button type="button" class="toggle-visibility"
+                [attr.aria-label]="showPassword() ? 'Ocultar senha' : 'Mostrar senha'"
+                [attr.aria-pressed]="showPassword()" (click)="toggleShowPassword()">
+          {{ showPassword() ? '🙈' : '👁️' }}
+        </button>
         @if (form.controls.password.touched && form.controls.password.invalid) {
-          <div class="error">A senha deve ter pelo menos 10 caracteres, incluindo letra e número</div>
+          <div class="error">
+            {{ mode() === 'login' ? 'Informe sua senha' : passwordHint }}
+          </div>
+        } @else if (mode() === 'register') {
+          <div class="field-hint">{{ passwordHint }}</div>
         }
       </div>
 
@@ -31,6 +40,10 @@
         {{ mode() === 'login' ? 'Entrar' : 'Cadastrar' }}
       </button>
     </form>
+
+    @if (mode() === 'login') {
+      <a class="toggle" routerLink="/esqueci-senha">Esqueci minha senha</a>
+    }
 
     <button class="toggle" type="button" (click)="toggleMode()">
       {{ mode() === 'login' ? 'Não tem conta? Cadastre-se' : 'Já tem conta? Entrar' }}

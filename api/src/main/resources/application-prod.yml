@@ -3,6 +3,24 @@
 app:
   security:
     cookie-secure: true
+  frontend:
+    # link do email de reset aponta pro domínio real
+    reset-url-base: ${FRONTEND_RESET_URL:https://poupito.com/redefinir-senha}
+  mail:
+    # ligar quando o SES estiver configurado (ver D:/Docs/Poupito/setup-ses-email.md)
+    enabled: ${MAIL_ENABLED:false}
+    from: ${MAIL_FROM:nao-responda@poupito.com}
+
+# SMTP do AWS SES — só usado quando app.mail.enabled=true (credenciais via env)
+spring:
+  mail:
+    host: ${MAIL_HOST:email-smtp.us-east-1.amazonaws.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
 
 # Swagger/OpenAPI desligados em produção (não expor o contrato publicamente)
 springdoc:

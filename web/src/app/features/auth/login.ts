@@ -1,15 +1,16 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 
 import { AuthService } from '../../core/auth/auth.service';
+import { PASSWORD_POLICY_HINT, strongPassword } from '../../core/auth/password.validator';
 
 type Mode = 'login' | 'register';
 
 @Component({
   selector: 'app-login',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, RouterLink],
   templateUrl: './login.html',
   styleUrl: './login.css'
 })
@@ -21,15 +22,27 @@ export class Login {
   readonly mode = signal<Mode>('login');
   readonly errorMessage = signal<string | null>(null);
   readonly loading = signal(false);
+  readonly showPassword = signal(false);
+
+  readonly passwordHint = PASSWORD_POLICY_HINT;
 
   readonly form = this.formBuilder.nonNullable.group({
     email: ['', [Validators.required, Validators.email]],
-    password: ['', [Validators.required, Validators.minLength(10)]]
+    password: ['', [Validators.required]]
   });
 
   toggleMode(): void {
-    this.mode.set(this.mode() === 'login' ? 'register' : 'login');
+    const next: Mode = this.mode() === 'login' ? 'register' : 'login';
+    this.mode.set(next);
     this.errorMessage.set(null);
+    // A política forte só vale onde se DEFINE senha (cadastro). No login, apenas "obrigatória".
+    const password = this.form.controls.password;
+    password.setValidators(next === 'register' ? [Validators.required, strongPassword] : [Validators.required]);
+    password.updateValueAndValidity();
+  }
+
+  toggleShowPassword(): void {
+    this.showPassword.update((v) => !v);
   }
 
   submit(): void {
@@ -60,6 +73,14 @@ export class Login {
     }
     if (error.status === 409) {
       return 'Email já cadastrado';
+    }
+    if (error.status === 429) {
+      const retryAfter = Number(error.headers?.get('Retry-After'));
+      if (retryAfter > 0) {
+        const minutes = Math.ceil(retryAfter / 60);
+        return `Muitas tentativas. Tente novamente em ${minutes} min.`;
+      }
+      return 'Muitas tentativas. Aguarde alguns minutos e tente novamente.';
     }
     return 'Erro ao comunicar com o servidor. Tente novamente.';
   }

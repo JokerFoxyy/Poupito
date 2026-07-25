@@ -147,6 +147,27 @@ td { padding: 9px 8px; border-bottom: 1px solid var(--border); }
 }
 .field input:focus { border-color: var(--accent); }
 .field .error { font-size: 12px; color: var(--red); margin-top: 4px; }
+.field .field-hint { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.4; }
+
+/* Campo de senha com botão "mostrar/ocultar" (olho) — sessão #29 */
+.password-field { position: relative; }
+.password-field input { padding-right: 42px; }
+.password-field .toggle-visibility {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 15px;
+}
+.password-field .toggle-visibility:hover { color: var(--text); }
 
 .form-error {
   background: color-mix(in srgb, var(--red) 12%, transparent);
@@ -155,6 +176,17 @@ td { padding: 9px 8px; border-bottom: 1px solid var(--border); }
   border-radius: 8px;
   padding: 10px 12px;
   font-size: 13px;
+  margin-bottom: 14px;
+}
+
+.form-success {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--accent);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.5;
   margin-bottom: 14px;
 }
 
