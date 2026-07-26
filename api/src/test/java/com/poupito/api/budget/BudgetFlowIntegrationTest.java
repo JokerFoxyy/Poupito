@@ -45,7 +45,7 @@ class BudgetFlowIntegrationTest {
 
 		checkingId = idOf(post("/v1/accounts", Map.of("name", "Uniclass", "type", "CHECKING")));
 		expenseCategoryId = idOf(post("/v1/categories", Map.of("name", "Mercado", "kind", "EXPENSE")));
-		incomeCategoryId = idOf(post("/v1/categories", Map.of("name", "SalÃ¡rio", "kind", "INCOME")));
+		incomeCategoryId = idOf(post("/v1/categories", Map.of("name", "Salário", "kind", "INCOME")));
 	}
 
 	private ResponseEntity<String> post(String url, Map<String, ?> body) {

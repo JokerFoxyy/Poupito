@@ -66,7 +66,7 @@ class LgpdFlowIntegrationTest {
 				new HttpEntity<>(auth), Void.class);
 		assertThat(deleted.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
 
-		// o token de acesso deixa de valer: o filtro nÃ£o acha mais o usuÃ¡rio
+		// o token de acesso deixa de valer: o filtro não acha mais o usuário
 		ResponseEntity<String> me = rest.exchange("/v1/auth/me", HttpMethod.GET,
 				new HttpEntity<>(auth), String.class);
 		assertThat(me.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
