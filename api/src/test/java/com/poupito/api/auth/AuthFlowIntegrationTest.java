@@ -23,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Import(TestcontainersConfiguration.class)
 class AuthFlowIntegrationTest {
 
-	private static final String PASSWORD = "senha-forte-123";
+	private static final String PASSWORD = "Senha-Forte-123";
 
 	@Autowired
 	private TestRestTemplate rest;

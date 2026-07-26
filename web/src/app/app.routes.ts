@@ -9,6 +9,14 @@ export const routes: Routes = [
     loadComponent: () => import('./features/auth/login').then((m) => m.Login)
   },
   {
+    path: 'esqueci-senha',
+    loadComponent: () => import('./features/auth/forgot-password').then((m) => m.ForgotPassword)
+  },
+  {
+    path: 'redefinir-senha',
+    loadComponent: () => import('./features/auth/reset-password').then((m) => m.ResetPassword)
+  },
+  {
     path: '',
     component: Shell,
     canActivate: [authGuard],

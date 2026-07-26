@@ -46,9 +46,15 @@ public class GlobalExceptionHandler {
 	}
 
 	@ExceptionHandler(TooManyRequestsException.class)
-	@ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
-	public ApiError handleTooManyRequests(TooManyRequestsException ex) {
-		return ApiError.of(HttpStatus.TOO_MANY_REQUESTS.value(), ex.getMessage());
+	public org.springframework.http.ResponseEntity<ApiError> handleTooManyRequests(TooManyRequestsException ex) {
+		ApiError body = ApiError.of(HttpStatus.TOO_MANY_REQUESTS.value(), ex.getMessage());
+		org.springframework.http.ResponseEntity.BodyBuilder builder =
+				org.springframework.http.ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS);
+		if (ex.getRetryAfterSeconds() != null) {
+			builder.header(org.springframework.http.HttpHeaders.RETRY_AFTER,
+					String.valueOf(ex.getRetryAfterSeconds()));
+		}
+		return builder.body(body);
 	}
 
 	@ExceptionHandler(NotFoundException.class)

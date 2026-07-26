@@ -39,7 +39,7 @@ class GoalFlowIntegrationTest {
 	void setUp() {
 		String email = "goal-" + UUID.randomUUID() + "@poupito.com";
 		ResponseEntity<String> register = rest.postForEntity("/v1/auth/register",
-				Map.of("email", email, "password", "senha-forte-123"), String.class);
+				Map.of("email", email, "password", "Senha-Forte-123"), String.class);
 		headers = AuthTestSupport.bearer(register);
 	}
 
@@ -59,7 +59,7 @@ class GoalFlowIntegrationTest {
 	void shouldCreateGoalAndComputeRequiredContributionFromContributions() throws Exception {
 		String targetDate = YearMonth.now().plusMonths(5).atDay(1).toString();
 		String goalId = idOf(post("/v1/goals",
-				Map.of("name", "Reserva de emergência", "targetAmount", "12000.00", "targetDate", targetDate)));
+				Map.of("name", "Reserva de emergÃªncia", "targetAmount", "12000.00", "targetDate", targetDate)));
 
 		post("/v1/goals/" + goalId + "/contributions",
 				Map.of("month", YearMonth.now().toString(), "amount", "7200.00"));
@@ -117,7 +117,7 @@ class GoalFlowIntegrationTest {
 
 		String otherEmail = "other-" + UUID.randomUUID() + "@poupito.com";
 		ResponseEntity<String> otherRegister = rest.postForEntity("/v1/auth/register",
-				Map.of("email", otherEmail, "password", "senha-forte-123"), String.class);
+				Map.of("email", otherEmail, "password", "Senha-Forte-123"), String.class);
 		HttpHeaders otherHeaders = AuthTestSupport.bearer(otherRegister);
 
 		ResponseEntity<String> response = rest.exchange("/v1/goals/" + goalId, HttpMethod.PUT,

@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { HttpErrorResponse } from '@angular/common/http';
-import { Router } from '@angular/router';
+import { HttpErrorResponse, HttpHeaders } from '@angular/common/http';
+import { Router, provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 
 import { Login } from './login';
@@ -11,9 +11,10 @@ describe('Login', () => {
   let fixture: ComponentFixture<Login>;
   let component: Login;
   let authService: jasmine.SpyObj<AuthService>;
-  let router: jasmine.SpyObj<Router>;
+  let router: Router;
 
   const user: UserResponse = { id: 'u1', email: 'victor@poupito.com' };
+  const STRONG = 'Senha-Forte-123';
 
   function fillForm(email: string, password: string): void {
     component.form.setValue({ email, password });
@@ -21,15 +22,17 @@ describe('Login', () => {
 
   beforeEach(async () => {
     authService = jasmine.createSpyObj<AuthService>('AuthService', ['login', 'register']);
-    router = jasmine.createSpyObj<Router>('Router', ['navigate']);
 
     await TestBed.configureTestingModule({
       imports: [Login],
       providers: [
-        { provide: AuthService, useValue: authService },
-        { provide: Router, useValue: router }
+        provideRouter([]),
+        { provide: AuthService, useValue: authService }
       ]
     }).compileComponents();
+
+    router = TestBed.inject(Router);
+    spyOn(router, 'navigate');
 
     fixture = TestBed.createComponent(Login);
     component = fixture.componentInstance;
@@ -41,7 +44,7 @@ describe('Login', () => {
   });
 
   it('should not call the service when form is invalid', () => {
-    fillForm('nao-e-email', 'curta');
+    fillForm('nao-e-email', '');
 
     component.submit();
 
@@ -51,29 +54,45 @@ describe('Login', () => {
 
   it('should navigate to dashboard when login succeeds', () => {
     authService.login.and.returnValue(of(user));
-    fillForm('victor@poupito.com', 'senha-forte-123');
+    fillForm('victor@poupito.com', 'qualquer-senha');
 
     component.submit();
 
-    expect(authService.login).toHaveBeenCalledWith('victor@poupito.com', 'senha-forte-123');
+    expect(authService.login).toHaveBeenCalledWith('victor@poupito.com', 'qualquer-senha');
     expect(router.navigate).toHaveBeenCalledWith(['/dashboard']);
   });
 
-  it('should call register when in register mode', () => {
+  it('should call register when in register mode with a strong password', () => {
     authService.register.and.returnValue(of(user));
     component.toggleMode();
-    fillForm('novo@poupito.com', 'senha-forte-123');
+    fillForm('novo@poupito.com', STRONG);
 
     component.submit();
 
-    expect(authService.register).toHaveBeenCalledWith('novo@poupito.com', 'senha-forte-123');
+    expect(authService.register).toHaveBeenCalledWith('novo@poupito.com', STRONG);
+  });
+
+  it('should not call register when password is too weak in register mode', () => {
+    component.toggleMode();
+    fillForm('novo@poupito.com', 'fraca');
+
+    component.submit();
+
+    expect(authService.register).not.toHaveBeenCalled();
+  });
+
+  it('should keep login accepting a legacy-format password (only required)', () => {
+    authService.login.and.returnValue(of(user));
+    fillForm('victor@poupito.com', 'senha10chars');
+
+    component.submit();
+
+    expect(authService.login).toHaveBeenCalled();
   });
 
   it('should show invalid credentials message when login returns 401', () => {
-    authService.login.and.returnValue(
-      throwError(() => new HttpErrorResponse({ status: 401 }))
-    );
-    fillForm('victor@poupito.com', 'senha-errada-123');
+    authService.login.and.returnValue(throwError(() => new HttpErrorResponse({ status: 401 })));
+    fillForm('victor@poupito.com', 'senha-errada');
 
     component.submit();
 
@@ -82,33 +101,61 @@ describe('Login', () => {
   });
 
   it('should show duplicate email message when register returns 409', () => {
-    authService.register.and.returnValue(
-      throwError(() => new HttpErrorResponse({ status: 409 }))
-    );
+    authService.register.and.returnValue(throwError(() => new HttpErrorResponse({ status: 409 })));
     component.toggleMode();
-    fillForm('duplicado@poupito.com', 'senha-forte-123');
+    fillForm('duplicado@poupito.com', STRONG);
 
     component.submit();
 
     expect(component.errorMessage()).toBe('Email já cadastrado');
   });
 
-  it('should show generic message when server fails', () => {
+  it('should show lockout message with remaining minutes when login returns 429', () => {
     authService.login.and.returnValue(
-      throwError(() => new HttpErrorResponse({ status: 500 }))
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 429,
+            headers: new HttpHeaders({ 'Retry-After': '120' })
+          })
+      )
     );
-    fillForm('victor@poupito.com', 'senha-forte-123');
+    fillForm('victor@poupito.com', 'senha-errada');
+
+    component.submit();
+
+    expect(component.errorMessage()).toBe('Muitas tentativas. Tente novamente em 2 min.');
+  });
+
+  it('should show a generic lockout message when 429 has no Retry-After', () => {
+    authService.login.and.returnValue(throwError(() => new HttpErrorResponse({ status: 429 })));
+    fillForm('victor@poupito.com', 'senha-errada');
+
+    component.submit();
+
+    expect(component.errorMessage()).toContain('Muitas tentativas');
+  });
+
+  it('should show generic message when server fails', () => {
+    authService.login.and.returnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+    fillForm('victor@poupito.com', 'qualquer-senha');
 
     component.submit();
 
     expect(component.errorMessage()).toContain('Erro ao comunicar com o servidor');
   });
 
+  it('should toggle password visibility', () => {
+    expect(component.showPassword()).toBeFalse();
+
+    component.toggleShowPassword();
+
+    expect(component.showPassword()).toBeTrue();
+  });
+
   it('should clear error message when toggling mode', () => {
-    authService.login.and.returnValue(
-      throwError(() => new HttpErrorResponse({ status: 401 }))
-    );
-    fillForm('victor@poupito.com', 'senha-errada-123');
+    authService.login.and.returnValue(throwError(() => new HttpErrorResponse({ status: 401 })));
+    fillForm('victor@poupito.com', 'senha-errada');
     component.submit();
 
     component.toggleMode();

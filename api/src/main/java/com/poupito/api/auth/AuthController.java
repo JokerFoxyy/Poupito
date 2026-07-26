@@ -1,12 +1,16 @@
 package com.poupito.api.auth;
 
+import com.poupito.api.auth.dto.ForgotPasswordRequest;
 import com.poupito.api.auth.dto.IssuedTokens;
 import com.poupito.api.auth.dto.LoginRequest;
 import com.poupito.api.auth.dto.RegisterRequest;
+import com.poupito.api.auth.dto.ResetPasswordRequest;
 import com.poupito.api.auth.dto.UserResponse;
 import com.poupito.api.auth.refresh.RefreshTokenService;
+import com.poupito.api.common.error.InvalidCredentialsException;
 import com.poupito.api.common.security.AuthCookieFactory;
 import com.poupito.api.common.security.AuthenticatedUser;
+import com.poupito.api.common.security.LoginAttemptLimiter;
 import com.poupito.api.common.security.LoginRateLimiter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -20,6 +24,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -29,14 +34,17 @@ public class AuthController {
 	private final AuthService authService;
 	private final AuthCookieFactory cookieFactory;
 	private final LoginRateLimiter rateLimiter;
+	private final LoginAttemptLimiter loginAttemptLimiter;
 	private final JwtService jwtService;
 	private final RefreshTokenService refreshTokenService;
 
 	public AuthController(AuthService authService, AuthCookieFactory cookieFactory,
-			LoginRateLimiter rateLimiter, JwtService jwtService, RefreshTokenService refreshTokenService) {
+			LoginRateLimiter rateLimiter, LoginAttemptLimiter loginAttemptLimiter,
+			JwtService jwtService, RefreshTokenService refreshTokenService) {
 		this.authService = authService;
 		this.cookieFactory = cookieFactory;
 		this.rateLimiter = rateLimiter;
+		this.loginAttemptLimiter = loginAttemptLimiter;
 		this.jwtService = jwtService;
 		this.refreshTokenService = refreshTokenService;
 	}
@@ -53,8 +61,29 @@ public class AuthController {
 	public ResponseEntity<UserResponse> login(@Valid @RequestBody LoginRequest request,
 			HttpServletRequest httpRequest) {
 		rateLimiter.check(rateKey(httpRequest, request.email()));
-		IssuedTokens tokens = authService.login(request.email(), request.password());
-		return withSessionCookies(HttpStatus.OK, tokens);
+		loginAttemptLimiter.checkNotLocked(request.email());
+		try {
+			IssuedTokens tokens = authService.login(request.email(), request.password());
+			loginAttemptLimiter.reset(request.email());
+			return withSessionCookies(HttpStatus.OK, tokens);
+		} catch (InvalidCredentialsException e) {
+			loginAttemptLimiter.recordFailure(request.email());
+			throw e;
+		}
+	}
+
+	@PostMapping("/forgot-password")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void forgotPassword(@Valid @RequestBody ForgotPasswordRequest request,
+			HttpServletRequest httpRequest) {
+		rateLimiter.check(rateKey(httpRequest, request.email()));
+		authService.forgotPassword(request.email());
+	}
+
+	@PostMapping("/reset-password")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+		authService.resetPassword(request.token(), request.newPassword());
 	}
 
 	@PostMapping("/refresh")

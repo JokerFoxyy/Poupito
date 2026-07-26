@@ -39,12 +39,12 @@ class RecurringFlowIntegrationTest {
 	@BeforeEach
 	void setUp() throws Exception {
 		ResponseEntity<String> register = rest.postForEntity("/v1/auth/register",
-				Map.of("email", "fixos-" + UUID.randomUUID() + "@poupito.com", "password", "senha-forte-123"),
+				Map.of("email", "fixos-" + UUID.randomUUID() + "@poupito.com", "password", "Senha-Forte-123"),
 				String.class);
 		headers = AuthTestSupport.bearer(register);
 		accountId = idOf(post("/v1/accounts", Map.of("name", "Uniclass", "type", "CHECKING")));
 		expenseCategoryId = idOf(post("/v1/categories", Map.of("name", "Assinaturas", "kind", "EXPENSE")));
-		incomeCategoryId = idOf(post("/v1/categories", Map.of("name", "Salário", "kind", "INCOME")));
+		incomeCategoryId = idOf(post("/v1/categories", Map.of("name", "SalÃ¡rio", "kind", "INCOME")));
 	}
 
 	private ResponseEntity<String> post(String url, Map<String, ?> body) {
@@ -85,7 +85,7 @@ class RecurringFlowIntegrationTest {
 	void shouldMaterializeMarkPaidAndReflectInTransactions() throws Exception {
 		post("/v1/recurring", fixo("Spotify", "EXPENSE", expenseCategoryId, 10));
 
-		// materializa julho → cria a ocorrência (transação não paga)
+		// materializa julho â†’ cria a ocorrÃªncia (transaÃ§Ã£o nÃ£o paga)
 		JsonNode occurrences = objectMapper.readTree(
 				rest.exchange("/v1/recurring/materialize?month=2026-07", HttpMethod.POST,
 						new HttpEntity<>(headers), String.class).getBody());
@@ -93,12 +93,12 @@ class RecurringFlowIntegrationTest {
 		assertThat(occurrences.get(0).get("paid").asBoolean()).isFalse();
 		String transactionId = occurrences.get(0).get("transactionId").asText();
 
-		// aparece em transações com paid=false
+		// aparece em transaÃ§Ãµes com paid=false
 		JsonNode july = objectMapper.readTree(get("/v1/transactions?month=2026-07").getBody());
 		assertThat(july.get("totalElements").asLong()).isEqualTo(1);
 		assertThat(july.get("content").get(0).get("paid").asBoolean()).isFalse();
 
-		// materializar de novo é idempotente (não duplica)
+		// materializar de novo Ã© idempotente (nÃ£o duplica)
 		rest.exchange("/v1/recurring/materialize?month=2026-07", HttpMethod.POST,
 				new HttpEntity<>(headers), String.class);
 		assertThat(objectMapper.readTree(get("/v1/transactions?month=2026-07").getBody())
@@ -110,7 +110,7 @@ class RecurringFlowIntegrationTest {
 		assertThat(paid.getStatusCode()).isEqualTo(HttpStatus.OK);
 		assertThat(objectMapper.readTree(paid.getBody()).get("paid").asBoolean()).isTrue();
 
-		// ocorrências agora refletem pago
+		// ocorrÃªncias agora refletem pago
 		JsonNode after = objectMapper.readTree(get("/v1/recurring/occurrences?month=2026-07").getBody());
 		assertThat(after.get(0).get("paid").asBoolean()).isTrue();
 	}

@@ -29,7 +29,7 @@ class LgpdFlowIntegrationTest {
 
 	private HttpHeaders setUpUserWithData() {
 		ResponseEntity<String> register = rest.postForEntity("/v1/auth/register",
-				Map.of("email", "lgpd-" + UUID.randomUUID() + "@poupito.com", "password", "senha-forte-123"),
+				Map.of("email", "lgpd-" + UUID.randomUUID() + "@poupito.com", "password", "Senha-Forte-123"),
 				String.class);
 		HttpHeaders headers = AuthTestSupport.bearer(register);
 		String accountId = idOf(rest.exchange("/v1/accounts", HttpMethod.POST,
@@ -66,7 +66,7 @@ class LgpdFlowIntegrationTest {
 				new HttpEntity<>(auth), Void.class);
 		assertThat(deleted.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
 
-		// o token de acesso deixa de valer: o filtro não acha mais o usuário
+		// o token de acesso deixa de valer: o filtro nÃ£o acha mais o usuÃ¡rio
 		ResponseEntity<String> me = rest.exchange("/v1/auth/me", HttpMethod.GET,
 				new HttpEntity<>(auth), String.class);
 		assertThat(me.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);

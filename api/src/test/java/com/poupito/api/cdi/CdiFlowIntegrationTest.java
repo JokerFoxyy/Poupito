@@ -46,7 +46,7 @@ class CdiFlowIntegrationTest {
 	void setUp() {
 		String email = "cdi-" + UUID.randomUUID() + "@poupito.com";
 		ResponseEntity<String> register = rest.postForEntity("/v1/auth/register",
-				Map.of("email", email, "password", "senha-forte-123"), String.class);
+				Map.of("email", email, "password", "Senha-Forte-123"), String.class);
 		headers = AuthTestSupport.bearer(register);
 	}
 

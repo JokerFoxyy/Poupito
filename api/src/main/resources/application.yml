@@ -31,6 +31,16 @@ app:
     rate-limit:
       max-attempts: ${AUTH_RATE_LIMIT_MAX:10}
       window: ${AUTH_RATE_LIMIT_WINDOW:PT1M}
+    lockout:
+      max-failures: ${LOGIN_LOCKOUT_MAX:5}
+      window: ${LOGIN_LOCKOUT_WINDOW:PT5M}
+  password-reset:
+    ttl: ${PASSWORD_RESET_TTL:PT30M}
+  frontend:
+    reset-url-base: ${FRONTEND_RESET_URL:http://localhost:4200/redefinir-senha}
+  mail:
+    enabled: ${MAIL_ENABLED:false}
+    from: ${MAIL_FROM:nao-responda@poupito.com}
 
 management:
   endpoints:

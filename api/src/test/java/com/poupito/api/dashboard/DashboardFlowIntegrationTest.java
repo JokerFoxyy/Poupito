@@ -40,12 +40,12 @@ class DashboardFlowIntegrationTest {
 	void setUp() throws Exception {
 		String email = "dashboard-" + UUID.randomUUID() + "@poupito.com";
 		ResponseEntity<String> register = rest.postForEntity("/v1/auth/register",
-				Map.of("email", email, "password", "senha-forte-123"), String.class);
+				Map.of("email", email, "password", "Senha-Forte-123"), String.class);
 		headers = AuthTestSupport.bearer(register);
 
 		checkingId = idOf(post("/v1/accounts", Map.of("name", "Uniclass", "type", "CHECKING")));
 		expenseCategoryId = idOf(post("/v1/categories", Map.of("name", "Mercado", "kind", "EXPENSE")));
-		incomeCategoryId = idOf(post("/v1/categories", Map.of("name", "Salário", "kind", "INCOME")));
+		incomeCategoryId = idOf(post("/v1/categories", Map.of("name", "SalÃ¡rio", "kind", "INCOME")));
 	}
 
 	private ResponseEntity<String> post(String url, Map<String, ?> body) {
@@ -66,7 +66,7 @@ class DashboardFlowIntegrationTest {
 
 	@Test
 	void shouldComputeSummaryWithIncomeExpenseAndBalances() throws Exception {
-		post("/v1/transactions", Map.of("description", "Salário", "amount", "5000.00", "date", "2026-07-05",
+		post("/v1/transactions", Map.of("description", "SalÃ¡rio", "amount", "5000.00", "date", "2026-07-05",
 				"type", "INCOME", "accountId", checkingId, "categoryId", incomeCategoryId));
 		post("/v1/transactions", Map.of("description", "Mercado", "amount", "300.00", "date", "2026-07-10",
 				"type", "EXPENSE", "accountId", checkingId, "categoryId", expenseCategoryId));
@@ -95,9 +95,9 @@ class DashboardFlowIntegrationTest {
 
 	@Test
 	void shouldAccumulateBalanceAcrossMonths() throws Exception {
-		post("/v1/transactions", Map.of("description", "Salário junho", "amount", "1000.00", "date", "2026-06-05",
+		post("/v1/transactions", Map.of("description", "SalÃ¡rio junho", "amount", "1000.00", "date", "2026-06-05",
 				"type", "INCOME", "accountId", checkingId, "categoryId", incomeCategoryId));
-		post("/v1/transactions", Map.of("description", "Salário julho", "amount", "1000.00", "date", "2026-07-05",
+		post("/v1/transactions", Map.of("description", "SalÃ¡rio julho", "amount", "1000.00", "date", "2026-07-05",
 				"type", "INCOME", "accountId", checkingId, "categoryId", incomeCategoryId));
 
 		JsonNode july = objectMapper.readTree(get("/v1/dashboard/summary?month=2026-07").getBody());
@@ -108,7 +108,7 @@ class DashboardFlowIntegrationTest {
 
 	@Test
 	void shouldReturnAnnualSeriesUpToSelectedMonth() throws Exception {
-		post("/v1/transactions", Map.of("description", "Salário", "amount", "1000.00", "date", "2026-02-05",
+		post("/v1/transactions", Map.of("description", "SalÃ¡rio", "amount", "1000.00", "date", "2026-02-05",
 				"type", "INCOME", "accountId", checkingId, "categoryId", incomeCategoryId));
 		post("/v1/transactions", Map.of("description", "Mercado", "amount", "200.00", "date", "2026-03-10",
 				"type", "EXPENSE", "accountId", checkingId, "categoryId", expenseCategoryId));
