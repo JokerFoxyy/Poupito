@@ -17,6 +17,9 @@ public interface CardRepository extends JpaRepository<Card, UUID> {
 
 	boolean existsByAccountIdIn(Collection<UUID> accountIds);
 
+	/** Nome de cartão é único por usuário, sem diferenciar maiúsculas (sessão #34). */
+	boolean existsByUserIdAndNameIgnoreCase(UUID userId, String name);
+
 	void deleteByUserId(UUID userId);
 
 }

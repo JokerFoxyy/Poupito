@@ -4,6 +4,7 @@ import com.poupito.api.account.Account;
 import com.poupito.api.account.AccountRepository;
 import com.poupito.api.card.dto.CardRequest;
 import com.poupito.api.card.dto.CardResponse;
+import com.poupito.api.common.error.DuplicateResourceException;
 import com.poupito.api.common.error.NotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,8 +39,9 @@ public class CardService {
 	@Transactional
 	public CardResponse create(UUID userId, CardRequest request) {
 		Account account = ownedAccount(userId, request.accountId());
-		Card card = new Card(userId, account.getId(), request.name().trim(),
-				request.closingDay(), request.dueDay());
+		String name = request.name().trim();
+		requireNameAvailable(userId, name);
+		Card card = new Card(userId, account.getId(), name, request.closingDay(), request.dueDay());
 		return CardResponse.from(cardRepository.save(card), account);
 	}
 
@@ -47,8 +49,20 @@ public class CardService {
 	public CardResponse update(UUID userId, UUID cardId, CardRequest request) {
 		Card card = findOwned(userId, cardId);
 		Account account = ownedAccount(userId, request.accountId());
-		card.update(account.getId(), request.name().trim(), request.closingDay(), request.dueDay());
+		String name = request.name().trim();
+		// só checa se o nome realmente mudou, senão salvar sem renomear bateria no próprio cartão
+		if (!card.getName().equalsIgnoreCase(name)) {
+			requireNameAvailable(userId, name);
+		}
+		card.update(account.getId(), name, request.closingDay(), request.dueDay());
 		return CardResponse.from(card, account);
+	}
+
+	/** Nome de cartão é único por usuário (sessão #34) — dois "Nubank" tornam os seletores ambíguos. */
+	private void requireNameAvailable(UUID userId, String name) {
+		if (cardRepository.existsByUserIdAndNameIgnoreCase(userId, name)) {
+			throw new DuplicateResourceException("Você já tem um cartão com esse nome");
+		}
 	}
 
 	/** Delete falha com 409 se houver transações/faturas no cartão (FK), igual a contas/categorias. */

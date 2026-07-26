@@ -86,11 +86,22 @@ export class CardsPanel implements OnInit {
     });
   }
 
-  /** 404 na conta vinculada = a conta foi apagada noutra tela e o dropdown ficou velho. */
+  /**
+   * 404 na conta vinculada = a conta foi apagada noutra tela e o dropdown ficou velho.
+   * 409 = nome de cartão repetido (unicidade por usuário, sessão #34).
+   */
   private saveErrorMessage(error: unknown): string {
-    if (error && typeof error === 'object' && 'status' in error && (error as { status: number }).status === 404) {
+    if (!error || typeof error !== 'object' || !('status' in error)) {
+      return 'Erro ao salvar o cartão';
+    }
+    const status = (error as { status: number }).status;
+    if (status === 404) {
       this.accountStore.refresh();
       return 'A conta selecionada não existe mais — atualize a lista e escolha outra.';
+    }
+    if (status === 409) {
+      const message = (error as { error?: { message?: string } }).error?.message;
+      return message ?? 'Você já tem um cartão com esse nome';
     }
     return 'Erro ao salvar o cartão';
   }

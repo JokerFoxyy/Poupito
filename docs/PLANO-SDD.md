@@ -260,6 +260,22 @@ Pré-req: #25. Roda independente do resto da fila.
 
 > Ordem atual (2026-07-25): ~~#29 (recuperação de senha)~~ ✅ → ~~#32 (fixos no cartão)~~ ✅ → **#24 (hardening)** → #27/#28/#30/#31 → #22 (Open Finance) por último. A #29 foi concluída (era um gap de acesso real em produção); a **próxima na fila é a #24**. A **#22 fica pro fim a pedido do usuário** (rodar todas as outras antes). As flexíveis: **#30** (template de import — pequena, encaixa cedo), **#27** (arquivar contas/cartões), **#28** (saldo por conta) e **#31** (empréstimos "a receber" — melhor após #28).
 
+**#33 — Refino visual: tipografia, tokens e ícones ("menos cara de IA")** 📋 PLANEJADA (pedido do usuário 2026-07-25, após auditoria do `styles.css`)
+Motivação: a marca tem personalidade (navy + esmeralda, "Crescimento Seguro", logo próprio — #23), mas a **execução visual** é genérica. Auditoria do CSS atual encontrou:
+- **Escala tipográfica achatada** (o mais grave): os `font-size` são 11, 12, 13, 14, 15 e saltam direto pra 24 — **quase tudo entre 11 e 15px**. Sem hierarquia, toda tela parece wireframe: hoje `R$ 1.945,80` e `dia 5` têm quase o mesmo peso visual. Num app financeiro o número é o conteúdo — precisa de escala (ex.: saldo ~32–36px, label 12px).
+- **Emoji como ícone de UI**: `☰` no menu e `☀️/🌙` no toggle de tema. Emoji de sistema renderiza diferente em cada SO, **não acompanha a cor do tema** e quebra o alinhamento óptico — é o sinal nº 1 de "gerado por IA". (O olho de mostrar senha já foi convertido pra SVG na #29, com resultado bom: serve de padrão.)
+- **`border-radius` sem token**: 4, 6, 8, 9, 10 e 12px espalhados — acúmulo de sessões, não variação intencional. Reduzir a 2–3 raios com propósito.
+- **Sem token de espaçamento**: cada componente escolhe padding/gap, então nada encaixa num ritmo vertical.
+- **Fonte Inter**: a default de praticamente todo app gerado por IA; neutra a ponto de anular a identidade. (Já havia a pendência "self-hostar Inter" desde a #23 — decidir junto se troca.)
+Tasks a refinar: (1) escala tipográfica + hierarquia dos números financeiros; (2) tokens `--radius-*` e `--space-*` aplicados em tudo; (3) emoji → SVG no menu e no toggle de tema; (4) avaliar troca de tipografia (2–3 opções self-hosted que combinem com "Crescimento Seguro") — parte mais subjetiva, decidir com o usuário; (5) micro-acabamento (transições, foco visível desenhado, densidade das tabelas); (6) testes web (≥90/80/90/90) + verificação nos dois temas.
+Ordem sugerida de execução: 1 → 2 → 3 primeiro (maior mudança de percepção, sem escolha subjetiva), mostrar no browser, e só então 4.
+Pré-req: nenhum. Nota: o **`/design` do Claude (DesignSync) não faz este trabalho** — ele sincroniza uma biblioteca de componentes com um projeto em `claude.ai/design` (catálogo/versionamento). Faz sentido **depois** desta sessão, para catalogar os componentes já refinados.
+
+**#34 — Bugfix: nome de conta e de cartão único por usuário** ✅ CONCLUÍDA (2026-07-25 — SDD: `docs/session-34-nome-unico-conta-cartao/SDD.md`; reportado pelo usuário 2026-07-25)
+Causa-raiz: `categories` já tinha unicidade (V2), mas **`accounts` e `cards` não tinham nenhuma** — `AccountService.create` só instanciava e salvava. Como conta/cartão são **rótulos de escolha** em toda a UI (seletor "Pagar com" de transações e fixos, filtros, mapeamento do importador que casa **por nome**), dois "Nubank" viram duas opções idênticas no dropdown e o usuário não sabe em qual lança.
+Entregue: migration **V15** com índices únicos em `(user_id, lower(name))` para as duas tabelas — **case-insensitive**, alinhando banco e service (em `categories` a constraint é case-sensitive e o service não, inconsistência não repetida aqui) — e **deduplicação antes de criar o índice** (renomeia repetidos para "Nome (2)" mantendo o mais antigo; sem isso a migration falharia e a API não subiria em quem já tem duplicatas). Services validam no create e no update (409 `DuplicateResourceException`), com a checagem no update rodando só **se o nome mudou**. Front mostra a mensagem real do 409 nos painéis de contas e cartões. Vale para **cartões** também, mesmo o usuário tendo citado só contas: mesmo problema, mesmo tipo de seletor.
+⚠️ **Ordem de merge:** usa **V15** porque a V14 está no PR #62 (#32), ainda aberto — **mergear o #62 antes deste**.
+
 ### Fase 5 — Futuro (sem sessão planejada ainda)
 
 Ideias soltas: Multi-tenancy real, plano free/pago, cotações via brapi.dev, app mobile consumindo a mesma API. *(A feature "a receber/emprestado — contas mãe" virou a sessão #31, formalizada acima.)*

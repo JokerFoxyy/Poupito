@@ -147,4 +147,92 @@ class AccountCategoryFlowIntegrationTest {
 				.isEqualTo(HttpStatus.UNAUTHORIZED);
 	}
 
+	// --- nome de conta único por usuário (sessão #34) ---
+
+	@Test
+	void shouldReturn409_whenCreatingAccountWithDuplicateName() {
+		assertThat(exchange(HttpMethod.POST, "/v1/accounts",
+				Map.of("name", "Uniclass", "type", "CHECKING"), String.class).getStatusCode())
+				.isEqualTo(HttpStatus.CREATED);
+
+		ResponseEntity<String> duplicate = exchange(HttpMethod.POST, "/v1/accounts",
+				Map.of("name", "Uniclass", "type", "CHECKING"), String.class);
+
+		assertThat(duplicate.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+		assertThat(duplicate.getBody()).contains("já tem uma conta com esse nome");
+	}
+
+	@Test
+	void shouldReturn409_whenAccountNameDiffersOnlyByCaseOrSpacing() {
+		exchange(HttpMethod.POST, "/v1/accounts",
+				Map.of("name", "Carteira", "type", "CASH"), String.class);
+
+		ResponseEntity<String> duplicate = exchange(HttpMethod.POST, "/v1/accounts",
+				Map.of("name", "  carteira  ", "type", "CASH"), String.class);
+
+		assertThat(duplicate.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+	}
+
+	@Test
+	void shouldAllowSameAccountNameForAnotherUser() {
+		exchange(HttpMethod.POST, "/v1/accounts",
+				Map.of("name", "Nubank", "type", "CHECKING"), String.class);
+
+		// a unicidade é por usuário: outra pessoa pode ter a conta com o mesmo nome
+		String otherEmail = "outro-" + UUID.randomUUID() + "@poupito.com";
+		ResponseEntity<String> other = rest.postForEntity("/v1/auth/register",
+				Map.of("email", otherEmail, "password", "Senha-Forte-123"), String.class);
+		HttpHeaders otherHeaders = AuthTestSupport.bearer(other);
+
+		ResponseEntity<String> created = rest.exchange("/v1/accounts", HttpMethod.POST,
+				new HttpEntity<>(Map.of("name", "Nubank", "type", "CHECKING"), otherHeaders), String.class);
+
+		assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+	}
+
+	@Test
+	void shouldAllowKeepingOwnNameWhenUpdatingAccount() {
+		ResponseEntity<String> created = exchange(HttpMethod.POST, "/v1/accounts",
+				Map.of("name", "Itau", "type", "CHECKING"), String.class);
+		String id = created.getBody().replaceAll(".*\"id\":\"([^\"]+)\".*", "$1");
+
+		// salvar sem renomear não pode colidir consigo mesmo
+		ResponseEntity<String> updated = exchange(HttpMethod.PUT, "/v1/accounts/" + id,
+				Map.of("name", "Itau", "type", "CASH"), String.class);
+
+		assertThat(updated.getStatusCode()).isEqualTo(HttpStatus.OK);
+		assertThat(updated.getBody()).contains("CASH");
+	}
+
+	@Test
+	void shouldReturn409_whenCreatingCardWithDuplicateName() {
+		ResponseEntity<String> account = exchange(HttpMethod.POST, "/v1/accounts",
+				Map.of("name", "Conta do cartao", "type", "CHECKING"), String.class);
+		String accountId = account.getBody().replaceAll(".*\"id\":\"([^\"]+)\".*", "$1");
+		Map<String, ?> card = Map.of("name", "Nubank", "accountId", accountId,
+				"closingDay", 3, "dueDay", 10);
+		assertThat(exchange(HttpMethod.POST, "/v1/cards", card, String.class).getStatusCode())
+				.isEqualTo(HttpStatus.CREATED);
+
+		ResponseEntity<String> duplicate = exchange(HttpMethod.POST, "/v1/cards",
+				Map.of("name", "nubank", "accountId", accountId, "closingDay", 3, "dueDay", 10),
+				String.class);
+
+		assertThat(duplicate.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+		assertThat(duplicate.getBody()).contains("já tem um cartão com esse nome");
+	}
+
+	@Test
+	void shouldReturn409_whenRenamingAccountOntoAnExistingName() {
+		exchange(HttpMethod.POST, "/v1/accounts", Map.of("name", "Conta A", "type", "CHECKING"), String.class);
+		ResponseEntity<String> b = exchange(HttpMethod.POST, "/v1/accounts",
+				Map.of("name", "Conta B", "type", "CHECKING"), String.class);
+		String idB = b.getBody().replaceAll(".*\"id\":\"([^\"]+)\".*", "$1");
+
+		ResponseEntity<String> renamed = exchange(HttpMethod.PUT, "/v1/accounts/" + idB,
+				Map.of("name", "Conta A", "type", "CHECKING"), String.class);
+
+		assertThat(renamed.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+	}
+
 }
