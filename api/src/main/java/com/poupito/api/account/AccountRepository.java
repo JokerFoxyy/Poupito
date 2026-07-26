@@ -12,6 +12,9 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
 
 	Optional<Account> findByIdAndUserId(UUID id, UUID userId);
 
+	/** Nome de conta é único por usuário, sem diferenciar maiúsculas (sessão #34). */
+	boolean existsByUserIdAndNameIgnoreCase(UUID userId, String name);
+
 	void deleteByUserId(UUID userId);
 
 }

@@ -103,4 +103,26 @@ describe('CardsPanel', () => {
     expect(component.errorMessage()).toContain('não existe mais');
     expect(accountService.list).toHaveBeenCalled();
   });
+
+  it('should surface the server message when the card name is duplicated (409)', () => {
+    cardService.create.and.returnValue(
+      throwError(() => ({ status: 409, error: { message: 'Você já tem um cartão com esse nome' } }))
+    );
+
+    component.openCreate();
+    component.form.setValue({ name: 'Nubank', accountId: 'a1', closingDay: 1, dueDay: 10 });
+    component.submit();
+
+    expect(component.errorMessage()).toBe('Você já tem um cartão com esse nome');
+  });
+
+  it('should fall back to a default duplicate message when 409 has no body', () => {
+    cardService.create.and.returnValue(throwError(() => ({ status: 409 })));
+
+    component.openCreate();
+    component.form.setValue({ name: 'Nubank', accountId: 'a1', closingDay: 1, dueDay: 10 });
+    component.submit();
+
+    expect(component.errorMessage()).toContain('já tem um cartão com esse nome');
+  });
 });
