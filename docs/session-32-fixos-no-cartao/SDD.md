@@ -94,13 +94,15 @@ Bloco de resumo no topo da tela, calculado no **frontend** com `computed()` a pa
 **ocorrências** do mês (não da lista crua de fixos) — logo já respeita quem realmente incide no mês:
 inativos e encerrados ficam de fora. Sem endpoint novo (os dados já vinham).
 
-- **Gastos fixos do mês** — soma das ocorrências `EXPENSE` (o que o usuário pediu).
-- **Ainda a pagar** — soma dos `EXPENSE` com `paid = false`; só aparece se houver algo pendente.
-  Efeito colateral bem-vindo da decisão da #32: fixo no cartão nasce `paid=true`, então **não entra
-  no "a pagar"** (quem quita é a fatura) — os dois recursos se encaixam sem regra extra.
+- **Gastos fixos do mês** — soma das ocorrências `EXPENSE` (o que o usuário pediu). Independe de
+  `paid`: é o total que incide no mês, não o que falta pagar.
 - **Entradas fixas** — soma das `INCOME`; só aparece se houver entrada fixa (a tela suporta os dois
   tipos; mostrar só gastos quando existe entrada seria incompleto).
 - O bloco todo é omitido quando não há ocorrência no mês.
+
+> Um terceiro item ("Ainda a pagar", soma dos `EXPENSE` não pagos) foi implementado e **removido a
+> pedido do usuário** — a tela já mostra o status por linha na coluna "Pago no mês", então o número
+> agregado era redundante.
 
 ## 5. Critérios de sucesso
 

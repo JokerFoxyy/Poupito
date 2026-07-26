@@ -28,12 +28,6 @@
       <span class="label">Gastos fixos do mês</span>
       <strong class="neg">{{ totalExpenses() | currency: 'BRL' }}</strong>
     </li>
-    @if (pendingExpenses() > 0) {
-      <li>
-        <span class="label">Ainda a pagar</span>
-        <strong>{{ pendingExpenses() | currency: 'BRL' }}</strong>
-      </li>
-    }
     @if (totalIncome() > 0) {
       <li>
         <span class="label">Entradas fixas</span>

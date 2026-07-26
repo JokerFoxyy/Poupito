@@ -40,12 +40,6 @@ export class Recurring implements OnInit {
    */
   readonly totalExpenses = computed(() => this.sumByType('EXPENSE'));
   readonly totalIncome = computed(() => this.sumByType('INCOME'));
-  /** Parte dos gastos fixos do mês que ainda não foi paga (só faz sentido em conta). */
-  readonly pendingExpenses = computed(() =>
-    this.occurrences()
-      .filter((occurrence) => occurrence.type === 'EXPENSE' && !occurrence.paid)
-      .reduce((total, occurrence) => total + occurrence.amount, 0)
-  );
 
   readonly form = this.formBuilder.nonNullable.group({
     description: ['', [Validators.required, Validators.maxLength(200)]],
