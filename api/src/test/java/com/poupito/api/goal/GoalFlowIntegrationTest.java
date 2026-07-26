@@ -39,7 +39,7 @@ class GoalFlowIntegrationTest {
 	void setUp() {
 		String email = "goal-" + UUID.randomUUID() + "@poupito.com";
 		ResponseEntity<String> register = rest.postForEntity("/v1/auth/register",
-				Map.of("email", email, "password", "senha-forte-123"), String.class);
+				Map.of("email", email, "password", "Senha-Forte-123"), String.class);
 		headers = AuthTestSupport.bearer(register);
 	}
 
@@ -117,7 +117,7 @@ class GoalFlowIntegrationTest {
 
 		String otherEmail = "other-" + UUID.randomUUID() + "@poupito.com";
 		ResponseEntity<String> otherRegister = rest.postForEntity("/v1/auth/register",
-				Map.of("email", otherEmail, "password", "senha-forte-123"), String.class);
+				Map.of("email", otherEmail, "password", "Senha-Forte-123"), String.class);
 		HttpHeaders otherHeaders = AuthTestSupport.bearer(otherRegister);
 
 		ResponseEntity<String> response = rest.exchange("/v1/goals/" + goalId, HttpMethod.PUT,

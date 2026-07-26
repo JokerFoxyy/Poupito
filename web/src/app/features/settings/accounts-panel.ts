@@ -61,8 +61,18 @@ export class AccountsPanel implements OnInit {
       : this.accountStore.create(payload);
     request$.subscribe({
       next: () => this.cancel(),
-      error: () => this.errorMessage.set('Erro ao salvar a conta')
+      error: (error: unknown) => this.errorMessage.set(this.saveErrorMessage(error))
     });
+  }
+
+  /** 409 = nome de conta repetido (unicidade por usuário, sessão #34): mostra o motivo real. */
+  private saveErrorMessage(error: unknown): string {
+    if (error && typeof error === 'object' && 'status' in error
+        && (error as { status: number }).status === 409) {
+      const message = (error as { error?: { message?: string } }).error?.message;
+      return message ?? 'Você já tem uma conta com esse nome';
+    }
+    return 'Erro ao salvar a conta';
   }
 
   remove(account: Account): void {

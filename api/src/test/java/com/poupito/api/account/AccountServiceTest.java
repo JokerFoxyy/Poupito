@@ -2,6 +2,7 @@ package com.poupito.api.account;
 
 import com.poupito.api.account.dto.AccountRequest;
 import com.poupito.api.account.dto.AccountResponse;
+import com.poupito.api.common.error.DuplicateResourceException;
 import com.poupito.api.common.error.NotFoundException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,6 +18,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -53,6 +55,50 @@ class AccountServiceTest {
 		ArgumentCaptor<Account> saved = ArgumentCaptor.forClass(Account.class);
 		verify(accountRepository).save(saved.capture());
 		assertThat(saved.getValue().getUserId()).isEqualTo(userId);
+	}
+
+	@Test
+	void shouldThrowDuplicate_whenCreatingAccountWithExistingName() {
+		when(accountRepository.existsByUserIdAndNameIgnoreCase(userId, "Nubank")).thenReturn(true);
+
+		assertThatThrownBy(() -> accountService.create(userId,
+				new AccountRequest("Nubank", AccountType.CHECKING)))
+				.isInstanceOf(DuplicateResourceException.class);
+		verify(accountRepository, never()).save(any());
+	}
+
+	@Test
+	void shouldThrowDuplicate_whenCreatingAccountDifferingOnlyByCase() {
+		when(accountRepository.existsByUserIdAndNameIgnoreCase(userId, "nubank")).thenReturn(true);
+
+		assertThatThrownBy(() -> accountService.create(userId,
+				new AccountRequest(" nubank ", AccountType.CHECKING)))
+				.isInstanceOf(DuplicateResourceException.class);
+	}
+
+	@Test
+	void shouldThrowDuplicate_whenRenamingAccountOntoAnotherName() {
+		Account account = new Account(userId, "Itau", AccountType.CHECKING);
+		when(accountRepository.findByIdAndUserId(any(), any())).thenReturn(Optional.of(account));
+		when(accountRepository.existsByUserIdAndNameIgnoreCase(userId, "Nubank")).thenReturn(true);
+
+		assertThatThrownBy(() -> accountService.update(userId, UUID.randomUUID(),
+				new AccountRequest("Nubank", AccountType.CHECKING)))
+				.isInstanceOf(DuplicateResourceException.class);
+		assertThat(account.getName()).isEqualTo("Itau");
+	}
+
+	@Test
+	void shouldAllowSavingAccountKeepingItsOwnName() {
+		Account account = new Account(userId, "Nubank", AccountType.CHECKING);
+		when(accountRepository.findByIdAndUserId(any(), any())).thenReturn(Optional.of(account));
+
+		AccountResponse response = accountService.update(userId, UUID.randomUUID(),
+				new AccountRequest("Nubank", AccountType.CASH));
+
+		// o nome não mudou, então a checagem de duplicata não roda (senão bateria na própria conta)
+		verify(accountRepository, never()).existsByUserIdAndNameIgnoreCase(any(), any());
+		assertThat(response.type()).isEqualTo(AccountType.CASH);
 	}
 
 	@Test

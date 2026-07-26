@@ -29,7 +29,7 @@ class LgpdFlowIntegrationTest {
 
 	private HttpHeaders setUpUserWithData() {
 		ResponseEntity<String> register = rest.postForEntity("/v1/auth/register",
-				Map.of("email", "lgpd-" + UUID.randomUUID() + "@poupito.com", "password", "senha-forte-123"),
+				Map.of("email", "lgpd-" + UUID.randomUUID() + "@poupito.com", "password", "Senha-Forte-123"),
 				String.class);
 		HttpHeaders headers = AuthTestSupport.bearer(register);
 		String accountId = idOf(rest.exchange("/v1/accounts", HttpMethod.POST,

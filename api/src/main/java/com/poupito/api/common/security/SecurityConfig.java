@@ -35,7 +35,8 @@ public class SecurityConfig {
 								.maxAgeInSeconds(31_536_000)))
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers("/v1/auth/register", "/v1/auth/login",
-								"/v1/auth/refresh", "/v1/auth/logout").permitAll()
+								"/v1/auth/refresh", "/v1/auth/logout",
+								"/v1/auth/forgot-password", "/v1/auth/reset-password").permitAll()
 						.requestMatchers("/actuator/health").permitAll()
 						.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 						.anyRequest().authenticated())

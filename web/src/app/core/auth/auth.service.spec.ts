@@ -89,4 +89,24 @@ describe('AuthService', () => {
     expect(service.isAuthenticated()).toBeFalse();
     expect(localStorage.getItem(AUTH_FLAG)).toBeNull();
   });
+
+  it('should post the email to forgot-password without authenticating', () => {
+    service.forgotPassword('victor@poupito.com').subscribe();
+
+    const request = httpMock.expectOne('/api/v1/auth/forgot-password');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({ email: 'victor@poupito.com' });
+    request.flush(null);
+
+    expect(service.isAuthenticated()).toBeFalse();
+  });
+
+  it('should post token and new password to reset-password', () => {
+    service.resetPassword('tok-1', 'NovaSenha-2026!').subscribe();
+
+    const request = httpMock.expectOne('/api/v1/auth/reset-password');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({ token: 'tok-1', newPassword: 'NovaSenha-2026!' });
+    request.flush(null);
+  });
 });

@@ -100,6 +100,7 @@ Angular 20 standalone + signals + `inject()`; Tailwind v4 via `@tailwindcss/post
 
 
 - `/api/v1/accounts` e `/api/v1/categories`: CRUDs escopados por usuário (recurso alheio → 404); cartão exige `closingDay`/`dueDay`; categoria única por (user, nome, kind) → 409.
+- **Nome único por usuário (sessão #34):** `accounts` e `cards` também rejeitam nome repetido → **409** (`DuplicateResourceException`), **case-insensitive** — índices `uq_accounts_user_lower_name`/`uq_cards_user_lower_name` em `(user_id, lower(name))` (migration **V15**) + checagem `existsByUserIdAndNameIgnoreCase` no service (no `update`, só se o nome mudou, senão colidiria consigo mesmo). Motivo: conta/cartão são rótulos de escolha nos seletores ("Pagar com", filtros) e o importador casa **por nome** — dois "Nubank" tornam tudo ambíguo. A V15 **deduplica o que já existe antes** de criar os índices (renomeia para "Nome (2)", mantendo o mais antigo), senão a migration falharia em bases com duplicatas.
 - `/api/v1/transactions`: `GET ?month=YYYY-MM` (obrigatório) `&accountId&categoryId&type&page&size` → `PageResponse`; POST/PUT/DELETE. `amount` sempre positivo (sinal vem do `type`); categoria deve ter kind coerente com o type; `INVOICE_ADJUSTMENT` é reservado (400 na API).
 - **Vínculo de fatura:** compra em cartão no dia do fechamento ou depois → fatura do mês seguinte; `CardInvoiceService.getOrCreateInvoiceFor` cria a fatura OPEN do período na primeira compra (única por conta+mês; dias clampados ao fim do mês; vencimento ≤ fechamento cai no mês seguinte). Update de transação re-vincula; sair do cartão zera `invoice_id`.
 - Delete de conta/categoria com transações → 409 (`DataIntegrityViolationException` no handler global).
@@ -198,8 +199,20 @@ Separa "onde o dinheiro vive" (conta) de "instrumento de pagamento" (cartão). M
 - **Fatura por cartão**: `card_invoices` agora referencia `card_id` (não mais `account_id`), única por (cartão, mês). `CardInvoiceService.getOrCreateInvoiceFor(Card, data)`. Compra no crédito no fechamento ou depois → fatura do mês seguinte (regra da #9 preservada).
 - **Pagar fatura** (`POST /v1/invoices/{id}/pay`, body `{accountId}`): cria uma transação `INVOICE_PAYMENT` debitando a **conta** informada (a compra no crédito já foi contada na competência — por isso `INVOICE_PAYMENT` é **excluído das agregações de gasto**, pra não contar duas vezes). `INVOICE_ADJUSTMENT` e `INVOICE_PAYMENT` são tipos reservados (400 se vierem no request). `InvoiceSummaryResponse` traz `cardId`/`cardName`.
 - **Importer**: um nome de "conta" da planilha pode resolver para conta existente, cartão existente, criar conta nova (`createType`) ou **criar cartão** (`createCard{accountId, closingDay, dueDay}`) — ver `AccountMappingChoice`. Isso corrige o bug da aba **Faturas zerada** (o import antigo pulava o vínculo de fatura; agora `ImportService.saveCardRow` liga a compra à fatura do cartão).
-- **Fixos** seguem sempre em conta (cartão em fixos = melhoria futura). LGPD/export (`UserDataService`) inclui `cards`; delete de conta segue ordem FK-safe transações → faturas (`deleteByCardIdIn`) → cards → accounts.
+- **Fixos** podem ser em conta **ou** em cartão desde a **sessão #32** (ver seção própria abaixo). LGPD/export (`UserDataService`) inclui `cards`; delete de conta segue ordem FK-safe transações → **recurring** → faturas (`deleteByCardIdIn`) → cards → accounts.
 - **Frontend**: painel **Cartões** em Configurações (CRUD vinculado a conta); seletor **"Pagar com"** no form de transação agrupa contas + cartões (`account:<id>`/`card:<id>`), campo "Parcelas" só aparece com cartão selecionado; **badge de método** (Crédito/Débito/Dinheiro) na listagem; tela **Faturas** por cartão com ação "Pagar fatura" que pede a conta; import com mapeamento de cartão. `Transaction.accountId`/`cardId` nullable, `method` sempre presente.
+
+## Fixos no cartão de crédito (sessão #32)
+
+Fecha a pendência da #25 ("fixo em cartão = melhoria futura"): antes, `recurring_transactions.account_id` era `NOT NULL` e não havia `card_id`, então assinatura cobrada no cartão (Netflix, Spotify) não podia ser cadastrada como fixo.
+
+- **Migration V14**: `account_id` vira nullable, entra `card_id` + CHECK `chk_recurring_account_xor_card` (mesma modelagem de `transactions` na V12) + índice em `card_id`. Aditiva/relaxante — os fixos existentes (todos em conta) já satisfazem o XOR, **sem backfill**.
+- `RecurringRequest` = `{description, amount, type, accountId?, cardId?, categoryId, dayOfMonth, active, endDate}`: informe **conta OU cartão** (400 "Informe conta OU cartão" se vierem zero ou os dois — checagem no service, não em anotação, porque depende dos dois campos). **Cartão só em gasto**: `type=INCOME` + `cardId` → 400 (igual às transações).
+- **Materialização** (`RecurringMaterializationService`): fixo **em conta** → `Transaction.materialized(...)`, `paid=false` (checkbox "pago?" por mês, comportamento inalterado); fixo **em cartão** → resolve o `Card`, chama `CardInvoiceService.getOrCreateInvoiceFor(card, data)` e cria via `Transaction.materializedOnCard(...)` **vinculado à fatura do período** (regra do `closing_day` da #9), com **`paid=true`** — no crédito a quitação é o pagamento da fatura (`INVOICE_PAYMENT`), não um checkbox por ocorrência.
+- `RecurringResponse`/`OccurrenceResponse` ganham `cardId`/`cardName` + **`method`** derivado. `PaymentMethod.of(UUID cardId, AccountType)` é o overload novo que serve fixos e transações sem duplicar a regra.
+- **Frontend** (`features/recurring/`): seletor **"Pagar com"** com `<optgroup>` Contas + Cartões (valores `account:<id>`/`card:<id>`, padrão da #25), cartões escondidos quando o tipo é Entrada (e o target volta pra conta ao trocar); consome o `CardStore`; **badge de método** na listagem; a coluna "Pago no mês" mostra **"na fatura"** (sem checkbox) para fixo em cartão.
+- `.method-badge`/`.method-credito|debito|dinheiro` foram promovidos de `transactions.css` para o **`styles.css` global** (agora compartilhados com Fixos).
+- Excluir cartão com fixo vinculado → **409** pelo FK (mesmo comportamento de transações vinculadas; a #27 vai melhorar isso com "arquivar").
 
 ## PWA (sessão #20)
 
@@ -215,7 +228,7 @@ Separa "onde o dinheiro vive" (conta) de "instrumento de pagamento" (cartão). M
 - Backup: `infra/scripts/backup.sh` (pg_dump → gzip → S3, cron no host) com lifecycle de 30 dias no bucket (`configure-s3-lifecycle.sh`, roda uma vez). Swap de 2GB e clone do repo: `infra/scripts/setup-host.sh` (roda uma vez na instância nova).
 - Passo a passo completo (domínio, DNS, criação da instância, secrets) em `infra/README.md` — são passos manuais que só o usuário pode executar (conta AWS, pagamento, DNS).
 
-## Auth & Segurança (sessões #2 e #S)
+## Auth & Segurança (sessões #2, #S e #29)
 
 **Modelo de sessão (reescrito na #S):** cookies httpOnly, não JWT no localStorage.
 - `POST /api/v1/auth/register` (201) e `/login` (200) setam **dois cookies httpOnly + SameSite=Strict** (`poupito_at` = access JWT 15min; `poupito_rt` = refresh opaco 30d) e retornam só `{id,email}` — **nunca o token no corpo**.
@@ -224,7 +237,13 @@ Separa "onde o dinheiro vive" (conta) de "instrumento de pagamento" (cartão). M
 - Refresh token: opaco (256 bits), guardado **como hash SHA-256** em `refresh_tokens`, rotacionado a cada uso, revogável. HS256 do access token assinado com `JWT_SECRET`.
 - **Frontend:** sem token em JS. `AuthService` guarda só a flag booleana `poupito.authed` (roteamento); interceptor manda `withCredentials` e, em 401, tenta `/refresh` uma vez e repete a requisição, senão desloga.
 
-**Hardening:** rate limiting em login/register (429; `LoginRateLimiter` in-memory por IP+email); BCrypt strength 12; senha exige ≥10 chars com letra e número; `SecretsValidator` **falha o startup em profile `prod`** se `JWT_SECRET`/`DB_PASSWORD` forem os defaults de dev; security headers (frame deny, referrer, HSTS); Swagger/api-docs desligados em prod (`application-prod.yml`, `cookie-secure: true`).
+**Hardening:** rate limiting em login/register (429; `LoginRateLimiter` in-memory por IP+email); **lockout por conta** (`LoginAttemptLimiter`, 5 falhas de login → 5 min, reseta no sucesso, 429 com `Retry-After`; sessão #29); BCrypt strength 12; `SecretsValidator` **falha o startup em profile `prod`** se `JWT_SECRET`/`DB_PASSWORD` forem os defaults de dev; security headers (frame deny, referrer, HSTS); Swagger/api-docs desligados em prod (`application-prod.yml`, `cookie-secure: true`).
+
+**Política de senha (sessão #29):** validador `@StrongPassword` (`common/validation/`) — **≥12 chars com maiúscula + minúscula + número + símbolo** — aplicado em `RegisterRequest` e `ResetPasswordRequest`. **`LoginRequest` continua só `@NotBlank`**: senhas antigas (regime ≥10) seguem logando; login valida contra o hash BCrypt, nunca contra a política (sem migração/rehash). No front, o validador `strongPassword` (`core/auth/password.validator.ts`) espelha a regra; a **dica de política só aparece onde se DEFINE senha (cadastro/redefinir), nunca no login**; toggle "mostrar senha" (olho) nos três formulários.
+
+**Recuperação de senha (sessão #29):** `POST /auth/forgot-password {email}` → **sempre 204** (anti-enumeração — não revela se o email existe); se existir, emite token de reset **opaco (256 bits) guardado como hash SHA-256** em `password_reset_tokens` (migration **V13**, single-use, expiry `app.password-reset.ttl` PT30M, invalida anteriores) e envia email com link `${app.frontend.reset-url-base}?token=...`. `POST /auth/reset-password {token,newPassword}` → consome o token, aplica a senha forte e **revoga todos os refresh tokens** (`revokeAllForUser` — re-login em todo lugar); token inválido/expirado/usado → **400**. Ambos públicos no `SecurityConfig` + rate limit no forgot. Front: telas `/esqueci-senha` e `/redefinir-senha` (token na query).
+
+**Email (`email/` package, sessão #29):** interface `EmailSender` selecionada por `app.mail.enabled` — `LoggingEmailSender` (default: loga o link, dev/test/prod-sem-SES) ou `SmtpEmailSender` (AWS SES via `spring.mail.*`, só quando `enabled=true`). `PasswordResetMailer` monta o email branded. Testes mockam `EmailSender`. Setup do SES (fora do repo): `D:/Docs/Poupito/setup-ses-email.md`. Dependência `spring-boot-starter-mail`.
 
 **CSRF:** desabilitado de propósito — a defesa é o cookie `SameSite=Strict` (não vai em requisição cross-site) numa API JSON same-origin. Modelo de ameaças STRIDE completo mantido fora do repo público (não expor mapa de ataque em app financeiro com usuários reais), em `D:\Docs\Poupito\threat-model-stride.md`.
 

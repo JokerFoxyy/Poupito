@@ -2,6 +2,7 @@ package com.poupito.api.account;
 
 import com.poupito.api.account.dto.AccountRequest;
 import com.poupito.api.account.dto.AccountResponse;
+import com.poupito.api.common.error.DuplicateResourceException;
 import com.poupito.api.common.error.NotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,15 +28,32 @@ public class AccountService {
 
 	@Transactional
 	public AccountResponse create(UUID userId, AccountRequest request) {
-		Account account = new Account(userId, request.name().trim(), request.type());
+		String name = request.name().trim();
+		requireNameAvailable(userId, name);
+		Account account = new Account(userId, name, request.type());
 		return AccountResponse.from(accountRepository.save(account));
 	}
 
 	@Transactional
 	public AccountResponse update(UUID userId, UUID accountId, AccountRequest request) {
 		Account account = findOwned(userId, accountId);
-		account.update(request.name().trim(), request.type());
+		String name = request.name().trim();
+		// só checa se o nome realmente mudou, senão salvar sem renomear bateria na própria conta
+		if (!account.getName().equalsIgnoreCase(name)) {
+			requireNameAvailable(userId, name);
+		}
+		account.update(name, request.type());
 		return AccountResponse.from(account);
+	}
+
+	/**
+	 * Nome de conta é único por usuário (sessão #34): duas contas com o mesmo nome deixam os
+	 * seletores ("Pagar com", filtros) ambíguos. Case-insensitive, como em categorias.
+	 */
+	private void requireNameAvailable(UUID userId, String name) {
+		if (accountRepository.existsByUserIdAndNameIgnoreCase(userId, name)) {
+			throw new DuplicateResourceException("Você já tem uma conta com esse nome");
+		}
 	}
 
 	@Transactional

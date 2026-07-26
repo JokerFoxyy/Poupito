@@ -85,4 +85,26 @@ describe('AccountsPanel', () => {
 
     expect(component.errorMessage()).toContain('Erro ao salvar');
   });
+
+  it('should surface the server message when the name is duplicated (409)', () => {
+    accountService.create.and.returnValue(
+      throwError(() => ({ status: 409, error: { message: 'Você já tem uma conta com esse nome' } }))
+    );
+
+    component.openCreate();
+    component.form.setValue({ name: 'Nubank', type: 'CHECKING' });
+    component.submit();
+
+    expect(component.errorMessage()).toBe('Você já tem uma conta com esse nome');
+  });
+
+  it('should fall back to a default duplicate message when 409 has no body', () => {
+    accountService.create.and.returnValue(throwError(() => ({ status: 409 })));
+
+    component.openCreate();
+    component.form.setValue({ name: 'Nubank', type: 'CHECKING' });
+    component.submit();
+
+    expect(component.errorMessage()).toContain('já tem uma conta com esse nome');
+  });
 });

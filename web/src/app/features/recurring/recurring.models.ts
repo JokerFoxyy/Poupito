@@ -1,3 +1,5 @@
+import { PaymentMethod } from '../settings/settings.models';
+
 export type RecurringType = 'EXPENSE' | 'INCOME';
 
 export interface Recurring {
@@ -5,8 +7,12 @@ export interface Recurring {
   description: string;
   amount: number;
   type: RecurringType;
-  accountId: string;
+  /** Conta XOR cartão (sessão #32): exatamente um dos dois é preenchido. */
+  accountId: string | null;
   accountName: string | null;
+  cardId: string | null;
+  cardName: string | null;
+  method: PaymentMethod;
   categoryId: string;
   categoryName: string | null;
   categoryIcon: string | null;
@@ -20,7 +26,9 @@ export interface RecurringPayload {
   description: string;
   amount: number;
   type: RecurringType;
-  accountId: string;
+  /** Informe accountId OU cardId — nunca os dois (o backend rejeita com 400). */
+  accountId?: string;
+  cardId?: string;
   categoryId: string;
   dayOfMonth: number;
   active: boolean;
@@ -33,6 +41,8 @@ export interface Occurrence {
   amount: number;
   type: RecurringType;
   accountName: string | null;
+  cardName: string | null;
+  method: PaymentMethod;
   categoryName: string | null;
   categoryIcon: string | null;
   categoryColor: string | null;

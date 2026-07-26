@@ -147,6 +147,31 @@ td { padding: 9px 8px; border-bottom: 1px solid var(--border); }
 }
 .field input:focus { border-color: var(--accent); }
 .field .error { font-size: 12px; color: var(--red); margin-top: 4px; }
+.field .field-hint { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.4; }
+
+/* Campo de senha com botão "mostrar/ocultar" (olho) — sessão #29 */
+/* O wrapper envolve só o input + botão, então o botão se alinha à altura do
+   input (não do .field inteiro, que inclui label e hint). */
+.password-field .input-wrap { position: relative; }
+.password-field input { padding-right: 40px; }
+.password-field .toggle-visibility {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--muted);
+  cursor: pointer;
+}
+.password-field .toggle-visibility svg { width: 18px; height: 18px; display: block; }
+.password-field .toggle-visibility:hover { color: var(--text); }
+.password-field .toggle-visibility:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
 
 .form-error {
   background: color-mix(in srgb, var(--red) 12%, transparent);
@@ -156,6 +181,38 @@ td { padding: 9px 8px; border-bottom: 1px solid var(--border); }
   padding: 10px 12px;
   font-size: 13px;
   margin-bottom: 14px;
+}
+
+.form-success {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--accent);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 14px;
+}
+
+/* Badge de método de pagamento (derivado) — usado em Transações e Fixos (sessões #25/#32) */
+.method-badge {
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 10px;
+  padding: 2px 9px;
+  white-space: nowrap;
+}
+.method-credito {
+  color: #7c3aed;
+  background: color-mix(in srgb, #7c3aed 15%, transparent);
+}
+.method-debito {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+.method-dinheiro {
+  color: #0891b2;
+  background: color-mix(in srgb, #0891b2 15%, transparent);
 }
 
 /* Utilitários compartilhados entre componentes (globais para atravessar a
