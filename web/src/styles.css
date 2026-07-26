@@ -194,6 +194,27 @@ td { padding: 9px 8px; border-bottom: 1px solid var(--border); }
   margin-bottom: 14px;
 }
 
+/* Badge de método de pagamento (derivado) — usado em Transações e Fixos (sessões #25/#32) */
+.method-badge {
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 10px;
+  padding: 2px 9px;
+  white-space: nowrap;
+}
+.method-credito {
+  color: #7c3aed;
+  background: color-mix(in srgb, #7c3aed 15%, transparent);
+}
+.method-debito {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+.method-dinheiro {
+  color: #0891b2;
+  background: color-mix(in srgb, #0891b2 15%, transparent);
+}
+
 /* Utilitários compartilhados entre componentes (globais para atravessar a
    encapsulação do Angular — usados por painéis-filhos como accounts/categories). */
 .panel-header {

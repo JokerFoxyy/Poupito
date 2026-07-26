@@ -3,8 +3,13 @@ package com.poupito.api.recurring;
 import com.poupito.api.account.Account;
 import com.poupito.api.account.AccountRepository;
 import com.poupito.api.account.AccountType;
+import com.poupito.api.card.Card;
+import com.poupito.api.card.CardRepository;
 import com.poupito.api.category.CategoryRepository;
+import com.poupito.api.invoice.CardInvoice;
+import com.poupito.api.invoice.CardInvoiceService;
 import com.poupito.api.recurring.dto.OccurrenceResponse;
+import com.poupito.api.transaction.PaymentMethod;
 import com.poupito.api.transaction.Transaction;
 import com.poupito.api.transaction.TransactionRepository;
 import com.poupito.api.transaction.TransactionType;
@@ -42,7 +47,11 @@ class RecurringMaterializationServiceTest {
 	@Mock
 	private AccountRepository accountRepository;
 	@Mock
+	private CardRepository cardRepository;
+	@Mock
 	private CategoryRepository categoryRepository;
+	@Mock
+	private CardInvoiceService cardInvoiceService;
 
 	@InjectMocks
 	private RecurringMaterializationService service;
@@ -52,8 +61,28 @@ class RecurringMaterializationServiceTest {
 		UUID accountId = UUID.randomUUID();
 		ReflectionTestUtils.setField(account, "id", accountId);
 		org.mockito.Mockito.lenient().when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
-		RecurringTransaction recurring = new RecurringTransaction(userId, accountId, UUID.randomUUID(),
+		RecurringTransaction recurring = new RecurringTransaction(userId, accountId, null, UUID.randomUUID(),
 				"Spotify", new BigDecimal("27.90"), TransactionType.EXPENSE, day, active, endDate);
+		ReflectionTestUtils.setField(recurring, "id", UUID.randomUUID());
+		return recurring;
+	}
+
+	/** Fixo no cartão (sessão #32): a ocorrência entra na fatura do período. */
+	private RecurringTransaction recurringOnCard(int day, UUID invoiceId) {
+		UUID accountId = UUID.randomUUID();
+		Card card = new Card(userId, accountId, "Nubank", 3, 10);
+		UUID cardId = UUID.randomUUID();
+		ReflectionTestUtils.setField(card, "id", cardId);
+		org.mockito.Mockito.lenient().when(cardRepository.findById(cardId)).thenReturn(Optional.of(card));
+		org.mockito.Mockito.lenient().when(cardRepository.findByIdAndUserId(cardId, userId))
+				.thenReturn(Optional.of(card));
+		CardInvoice invoice = new CardInvoice(cardId, LocalDate.of(2026, 8, 1),
+				LocalDate.of(2026, 8, 3), LocalDate.of(2026, 8, 10));
+		ReflectionTestUtils.setField(invoice, "id", invoiceId);
+		org.mockito.Mockito.lenient().when(cardInvoiceService.getOrCreateInvoiceFor(eq(card), any()))
+				.thenReturn(invoice);
+		RecurringTransaction recurring = new RecurringTransaction(userId, null, cardId, UUID.randomUUID(),
+				"Netflix", new BigDecimal("55.90"), TransactionType.EXPENSE, day, true, null);
 		ReflectionTestUtils.setField(recurring, "id", UUID.randomUUID());
 		return recurring;
 	}
@@ -141,6 +170,48 @@ class RecurringMaterializationServiceTest {
 		assertThat(occurrences.getFirst().materialized()).isTrue();
 		assertThat(occurrences.getFirst().paid()).isTrue();
 		assertThat(occurrences.getFirst().transactionId()).isEqualTo(existing.getId());
+	}
+
+	@Test
+	void shouldLinkOccurrenceToCardInvoice_whenRecurringIsOnCard() {
+		UUID invoiceId = UUID.randomUUID();
+		RecurringTransaction recurring = recurringOnCard(10, invoiceId);
+		when(transactionRepository.findByRecurringIdAndDateBetween(any(), any(), any())).thenReturn(Optional.empty());
+		when(transactionRepository.save(any(Transaction.class))).thenAnswer(inv -> inv.getArgument(0));
+
+		Transaction created = service.materializeOccurrence(recurring, YearMonth.of(2026, 7));
+
+		assertThat(created.getCardId()).isEqualTo(recurring.getCardId());
+		assertThat(created.getAccountId()).isNull();
+		assertThat(created.getInvoiceId()).isEqualTo(invoiceId);
+		assertThat(created.getRecurringId()).isEqualTo(recurring.getId());
+		// no cartão a quitação é o pagamento da fatura, então a ocorrência já nasce paga
+		assertThat(created.isPaid()).isTrue();
+	}
+
+	@Test
+	void shouldNotTouchAccountRepository_whenRecurringIsOnCard() {
+		RecurringTransaction recurring = recurringOnCard(10, UUID.randomUUID());
+		when(transactionRepository.findByRecurringIdAndDateBetween(any(), any(), any())).thenReturn(Optional.empty());
+		when(transactionRepository.save(any(Transaction.class))).thenAnswer(inv -> inv.getArgument(0));
+
+		service.materializeOccurrence(recurring, YearMonth.of(2026, 7));
+
+		verify(accountRepository, never()).findById(any());
+	}
+
+	@Test
+	void shouldReportCreditMethodAndCardName_whenListingCardOccurrences() {
+		RecurringTransaction recurring = recurringOnCard(10, UUID.randomUUID());
+		when(recurringRepository.findAllByUserIdOrderByDescriptionAsc(userId)).thenReturn(List.of(recurring));
+		when(transactionRepository.findByRecurringIdAndDateBetween(any(), any(), any())).thenReturn(Optional.empty());
+
+		List<OccurrenceResponse> occurrences = service.occurrencesFor(userId, YearMonth.of(2026, 7));
+
+		assertThat(occurrences).hasSize(1);
+		assertThat(occurrences.getFirst().method()).isEqualTo(PaymentMethod.CREDITO);
+		assertThat(occurrences.getFirst().cardName()).isEqualTo("Nubank");
+		assertThat(occurrences.getFirst().accountName()).isNull();
 	}
 
 	@Test

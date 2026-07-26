@@ -110,12 +110,25 @@ public class Transaction {
 		return new Transaction(userId, null, cardId, categoryId, invoiceId, description, amount, date, type);
 	}
 
-	/** Transação gerada por um fixo (sempre em conta): vinculada ao recurring e nasce não-paga. */
+	/** Transação gerada por um fixo em conta: vinculada ao recurring e nasce não-paga (checkbox "pago?"). */
 	public static Transaction materialized(UUID userId, UUID accountId, UUID categoryId,
 			String description, BigDecimal amount, LocalDate date, TransactionType type, UUID recurringId) {
 		Transaction transaction = forAccount(userId, accountId, categoryId, description, amount, date, type);
 		transaction.recurringId = recurringId;
 		transaction.paid = false;
+		return transaction;
+	}
+
+	/**
+	 * Transação gerada por um fixo no cartão de crédito (sessão #32): entra na fatura do período e
+	 * nasce <b>paga</b> — a quitação é o pagamento da fatura ({@code INVOICE_PAYMENT}), não um
+	 * checkbox por ocorrência.
+	 */
+	public static Transaction materializedOnCard(UUID userId, UUID cardId, UUID categoryId, UUID invoiceId,
+			String description, BigDecimal amount, LocalDate date, TransactionType type, UUID recurringId) {
+		Transaction transaction = forCard(userId, cardId, categoryId, invoiceId, description, amount, date, type);
+		transaction.recurringId = recurringId;
+		transaction.paid = true;
 		return transaction;
 	}
 

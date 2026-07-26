@@ -59,7 +59,7 @@ class GoalFlowIntegrationTest {
 	void shouldCreateGoalAndComputeRequiredContributionFromContributions() throws Exception {
 		String targetDate = YearMonth.now().plusMonths(5).atDay(1).toString();
 		String goalId = idOf(post("/v1/goals",
-				Map.of("name", "Reserva de emergÃªncia", "targetAmount", "12000.00", "targetDate", targetDate)));
+				Map.of("name", "Reserva de emergência", "targetAmount", "12000.00", "targetDate", targetDate)));
 
 		post("/v1/goals/" + goalId + "/contributions",
 				Map.of("month", YearMonth.now().toString(), "amount", "7200.00"));

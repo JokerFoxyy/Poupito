@@ -27,8 +27,12 @@ public class RecurringTransaction {
 	@Column(name = "user_id", nullable = false)
 	private UUID userId;
 
-	@Column(name = "account_id", nullable = false)
+	/** Conta XOR cartão (CHECK no banco): exatamente um dos dois é preenchido — sessão #32. */
+	@Column(name = "account_id")
 	private UUID accountId;
+
+	@Column(name = "card_id")
+	private UUID cardId;
 
 	@Column(name = "category_id", nullable = false)
 	private UUID categoryId;
@@ -58,10 +62,12 @@ public class RecurringTransaction {
 	protected RecurringTransaction() {
 	}
 
-	public RecurringTransaction(UUID userId, UUID accountId, UUID categoryId, String description,
-			BigDecimal amount, TransactionType type, int dayOfMonth, boolean active, LocalDate endDate) {
+	public RecurringTransaction(UUID userId, UUID accountId, UUID cardId, UUID categoryId,
+			String description, BigDecimal amount, TransactionType type, int dayOfMonth,
+			boolean active, LocalDate endDate) {
 		this.userId = userId;
 		this.accountId = accountId;
+		this.cardId = cardId;
 		this.categoryId = categoryId;
 		this.description = description;
 		this.amount = amount;
@@ -78,9 +84,10 @@ public class RecurringTransaction {
 		}
 	}
 
-	public void update(UUID accountId, UUID categoryId, String description, BigDecimal amount,
-			TransactionType type, int dayOfMonth, boolean active, LocalDate endDate) {
+	public void update(UUID accountId, UUID cardId, UUID categoryId, String description,
+			BigDecimal amount, TransactionType type, int dayOfMonth, boolean active, LocalDate endDate) {
 		this.accountId = accountId;
+		this.cardId = cardId;
 		this.categoryId = categoryId;
 		this.description = description;
 		this.amount = amount;
@@ -113,6 +120,15 @@ public class RecurringTransaction {
 
 	public UUID getAccountId() {
 		return accountId;
+	}
+
+	public UUID getCardId() {
+		return cardId;
+	}
+
+	/** Fixo cobrado no cartão de crédito (gera lançamento na fatura) — sessão #32. */
+	public boolean isOnCard() {
+		return cardId != null;
 	}
 
 	public UUID getCategoryId() {

@@ -24,6 +24,31 @@ h1 {
   font-size: 13px;
 }
 
+/* Resumo dos fixos que incidem no mês selecionado */
+.fixed-summary {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 32px;
+  margin: 0 0 16px;
+}
+
+.fixed-summary li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fixed-summary .label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.fixed-summary strong {
+  font-size: 18px;
+  font-weight: 600;
+}
+
 .amount-col {
   text-align: right;
 }

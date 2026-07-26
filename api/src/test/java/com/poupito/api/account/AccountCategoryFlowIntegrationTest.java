@@ -97,7 +97,7 @@ class AccountCategoryFlowIntegrationTest {
 	@Test
 	void shouldCompleteCategoryCrudFlow_whenAuthenticated() {
 		ResponseEntity<String> created = exchange(HttpMethod.POST, "/v1/categories",
-				Map.of("name", "Mercado", "icon", "ðŸ›’", "color", "#3fb950", "kind", "EXPENSE"), String.class);
+				Map.of("name", "Mercado", "icon", "🛒", "color", "#3fb950", "kind", "EXPENSE"), String.class);
 		assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
 		String id = created.getBody().replaceAll(".*\"id\":\"([^\"]+)\".*", "$1");
 
@@ -106,7 +106,7 @@ class AccountCategoryFlowIntegrationTest {
 		assertThat(duplicate.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
 
 		ResponseEntity<String> updated = exchange(HttpMethod.PUT, "/v1/categories/" + id,
-				Map.of("name", "Supermercado", "icon", "ðŸ›’", "color", "#d29922", "kind", "EXPENSE"), String.class);
+				Map.of("name", "Supermercado", "icon", "🛒", "color", "#d29922", "kind", "EXPENSE"), String.class);
 		assertThat(updated.getBody()).contains("Supermercado").contains("#d29922");
 
 		ResponseEntity<Void> deleted = exchange(HttpMethod.DELETE, "/v1/categories/" + id, null, Void.class);
@@ -128,7 +128,7 @@ class AccountCategoryFlowIntegrationTest {
 				Map.of("name", "Uniclass", "type", "CHECKING"), String.class);
 		String id = created.getBody().replaceAll(".*\"id\":\"([^\"]+)\".*", "$1");
 
-		// segundo usuÃ¡rio tenta acessar a conta do primeiro
+		// segundo usuário tenta acessar a conta do primeiro
 		String otherEmail = "intruso-" + UUID.randomUUID() + "@poupito.com";
 		ResponseEntity<String> other = rest.postForEntity("/v1/auth/register",
 				Map.of("email", otherEmail, "password", "Senha-Forte-123"), String.class);
