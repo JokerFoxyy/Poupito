@@ -22,6 +22,27 @@
   <div class="form-error" role="alert">{{ message }}</div>
 }
 
+@if (occurrences().length > 0) {
+  <ul class="fixed-summary panel">
+    <li>
+      <span class="label">Gastos fixos do mês</span>
+      <strong class="neg">{{ totalExpenses() | currency: 'BRL' }}</strong>
+    </li>
+    @if (pendingExpenses() > 0) {
+      <li>
+        <span class="label">Ainda a pagar</span>
+        <strong>{{ pendingExpenses() | currency: 'BRL' }}</strong>
+      </li>
+    }
+    @if (totalIncome() > 0) {
+      <li>
+        <span class="label">Entradas fixas</span>
+        <strong class="pos">+{{ totalIncome() | currency: 'BRL' }}</strong>
+      </li>
+    }
+  </ul>
+}
+
 <div class="panel">
   @if (showForm()) {
     <form [formGroup]="form" (ngSubmit)="submit()" class="inline-form">

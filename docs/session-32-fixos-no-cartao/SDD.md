@@ -88,6 +88,20 @@ saldo de caixa e não aparece na fatura) ou não usa o recurso.
 6. Testes web (≥90/80/90/90) + verificação e2e no browser.
 7. Docs vivos (CLAUDE.md, PLANO-SDD.md) + PR (sem merge).
 
+## 4.1 Complemento — resumo de totais na tela de Fixos (pedido do usuário 2026-07-25)
+
+Bloco de resumo no topo da tela, calculado no **frontend** com `computed()` a partir das
+**ocorrências** do mês (não da lista crua de fixos) — logo já respeita quem realmente incide no mês:
+inativos e encerrados ficam de fora. Sem endpoint novo (os dados já vinham).
+
+- **Gastos fixos do mês** — soma das ocorrências `EXPENSE` (o que o usuário pediu).
+- **Ainda a pagar** — soma dos `EXPENSE` com `paid = false`; só aparece se houver algo pendente.
+  Efeito colateral bem-vindo da decisão da #32: fixo no cartão nasce `paid=true`, então **não entra
+  no "a pagar"** (quem quita é a fatura) — os dois recursos se encaixam sem regra extra.
+- **Entradas fixas** — soma das `INCOME`; só aparece se houver entrada fixa (a tela suporta os dois
+  tipos; mostrar só gastos quando existe entrada seria incompleto).
+- O bloco todo é omitido quando não há ocorrência no mês.
+
 ## 5. Critérios de sucesso
 
 - Consigo cadastrar um fixo "Netflix" **no cartão de crédito** (antes: impossível).

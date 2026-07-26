@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CurrencyPipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 
@@ -33,6 +33,19 @@ export class Recurring implements OnInit {
   readonly editing = signal<RecurringModel | null>(null);
   readonly errorMessage = signal<string | null>(null);
   readonly methodLabels = PAYMENT_METHOD_LABELS;
+
+  /**
+   * Totais do mês selecionado. Somam as **ocorrências** (não a lista crua de fixos), então já
+   * respeitam quem realmente incide no mês: inativos e encerrados ficam de fora.
+   */
+  readonly totalExpenses = computed(() => this.sumByType('EXPENSE'));
+  readonly totalIncome = computed(() => this.sumByType('INCOME'));
+  /** Parte dos gastos fixos do mês que ainda não foi paga (só faz sentido em conta). */
+  readonly pendingExpenses = computed(() =>
+    this.occurrences()
+      .filter((occurrence) => occurrence.type === 'EXPENSE' && !occurrence.paid)
+      .reduce((total, occurrence) => total + occurrence.amount, 0)
+  );
 
   readonly form = this.formBuilder.nonNullable.group({
     description: ['', [Validators.required, Validators.maxLength(200)]],
@@ -191,6 +204,12 @@ export class Recurring implements OnInit {
 
   private loadOccurrences(): void {
     this.recurringService.occurrences(this.month()).subscribe((occurrences) => this.occurrences.set(occurrences));
+  }
+
+  private sumByType(type: RecurringType): number {
+    return this.occurrences()
+      .filter((occurrence) => occurrence.type === type)
+      .reduce((total, occurrence) => total + occurrence.amount, 0);
   }
 }
 

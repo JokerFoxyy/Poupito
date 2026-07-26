@@ -233,6 +233,65 @@ describe('Recurring', () => {
     expect(fixture.nativeElement.querySelector('.method-credito')).not.toBeNull();
   });
 
+  it('should total only the expense occurrences of the month', () => {
+    recurringService.occurrences.and.returnValue(of([
+      { ...occurrence, recurringId: 'r1', amount: 89.9, type: 'EXPENSE' },
+      { ...occurrence, recurringId: 'r2', amount: 55.9, type: 'EXPENSE' },
+      { ...occurrence, recurringId: 'r3', amount: 4000, type: 'INCOME' }
+    ]));
+    component.ngOnInit();
+
+    expect(component.totalExpenses()).toBeCloseTo(145.8, 2);
+    expect(component.totalIncome()).toBe(4000);
+  });
+
+  it('should count only unpaid expenses as pending', () => {
+    recurringService.occurrences.and.returnValue(of([
+      { ...occurrence, recurringId: 'r1', amount: 89.9, type: 'EXPENSE', paid: false },
+      { ...occurrence, recurringId: 'r2', amount: 55.9, type: 'EXPENSE', paid: true },
+      { ...occurrence, recurringId: 'r3', amount: 4000, type: 'INCOME', paid: false }
+    ]));
+    component.ngOnInit();
+
+    expect(component.pendingExpenses()).toBeCloseTo(89.9, 2);
+  });
+
+  it('should render the summary with the monthly fixed expense total', () => {
+    recurringService.occurrences.and.returnValue(of([
+      { ...occurrence, amount: 89.9, type: 'EXPENSE', paid: false }
+    ]));
+    component.ngOnInit();
+    fixture.detectChanges();
+
+    const summary = fixture.nativeElement.querySelector('.fixed-summary');
+    expect(summary).not.toBeNull();
+    expect(summary.textContent).toContain('Gastos fixos do mês');
+    // separador decimal varia com o locale (Karma roda en-US; o app, pt-BR)
+    expect(summary.textContent).toMatch(/R\$\s?89[.,]90/);
+    expect(summary.textContent).toContain('Ainda a pagar');
+  });
+
+  it('should hide the summary when there is no occurrence in the month', () => {
+    recurringService.occurrences.and.returnValue(of([]));
+    component.ngOnInit();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.fixed-summary')).toBeNull();
+    expect(component.totalExpenses()).toBe(0);
+  });
+
+  it('should omit the income line when there is no fixed income', () => {
+    recurringService.occurrences.and.returnValue(of([
+      { ...occurrence, amount: 89.9, type: 'EXPENSE', paid: true }
+    ]));
+    component.ngOnInit();
+    fixture.detectChanges();
+
+    const summary = fixture.nativeElement.querySelector('.fixed-summary');
+    expect(summary.textContent).not.toContain('Entradas fixas');
+    expect(summary.textContent).not.toContain('Ainda a pagar');
+  });
+
   it('should show backend message when save fails', () => {
     recurringService.create.and.returnValue(
       throwError(() => ({ error: { message: 'Categoria não é compatível' } })));
