@@ -4,8 +4,9 @@ import { of, throwError } from 'rxjs';
 import { Recurring } from './recurring';
 import { RecurringService } from './recurring.service';
 import { AccountService } from '../settings/account.service';
+import { CardService } from '../settings/card.service';
 import { CategoryService } from '../settings/category.service';
-import { Account, Category } from '../settings/settings.models';
+import { Account, Card, Category } from '../settings/settings.models';
 import { Occurrence, Recurring as RecurringModel } from './recurring.models';
 
 describe('Recurring', () => {
@@ -14,17 +15,28 @@ describe('Recurring', () => {
   let recurringService: jasmine.SpyObj<RecurringService>;
 
   const accounts: Account[] = [{ id: 'a1', name: 'Uniclass', type: 'CHECKING' }];
+  const cards: Card[] = [
+    { id: 'k1', name: 'Nubank', accountId: 'a1', accountName: 'Uniclass', closingDay: 3, dueDay: 10 }
+  ];
   const categories: Category[] = [
     { id: 'c1', name: 'Assinaturas', icon: '🔁', color: '#a371f7', kind: 'EXPENSE' },
     { id: 'c2', name: 'Salário', icon: '💰', color: '#3fb950', kind: 'INCOME' }
   ];
   const spotify: RecurringModel = {
     id: 'r1', description: 'Spotify', amount: 27.9, type: 'EXPENSE', accountId: 'a1', accountName: 'Uniclass',
+    cardId: null, cardName: null, method: 'DEBITO',
+    categoryId: 'c1', categoryName: 'Assinaturas', categoryIcon: '🔁', categoryColor: '#a371f7',
+    dayOfMonth: 10, active: true, endDate: null
+  };
+  const netflix: RecurringModel = {
+    id: 'r2', description: 'Netflix', amount: 55.9, type: 'EXPENSE', accountId: null, accountName: null,
+    cardId: 'k1', cardName: 'Nubank', method: 'CREDITO',
     categoryId: 'c1', categoryName: 'Assinaturas', categoryIcon: '🔁', categoryColor: '#a371f7',
     dayOfMonth: 10, active: true, endDate: null
   };
   const occurrence: Occurrence = {
     recurringId: 'r1', description: 'Spotify', amount: 27.9, type: 'EXPENSE', accountName: 'Uniclass',
+    cardName: null, method: 'DEBITO',
     categoryName: 'Assinaturas', categoryIcon: '🔁', categoryColor: '#a371f7', dayOfMonth: 10,
     date: '2026-07-10', transactionId: 't1', materialized: true, paid: false
   };
@@ -36,6 +48,8 @@ describe('Recurring', () => {
     recurringService.occurrences.and.returnValue(of([occurrence]));
     const accountService = jasmine.createSpyObj<AccountService>('AccountService', ['list']);
     accountService.list.and.returnValue(of(accounts));
+    const cardService = jasmine.createSpyObj<CardService>('CardService', ['list']);
+    cardService.list.and.returnValue(of(cards));
     const categoryService = jasmine.createSpyObj<CategoryService>('CategoryService', ['list']);
     categoryService.list.and.returnValue(of(categories));
 
@@ -44,6 +58,7 @@ describe('Recurring', () => {
       providers: [
         { provide: RecurringService, useValue: recurringService },
         { provide: AccountService, useValue: accountService },
+        { provide: CardService, useValue: cardService },
         { provide: CategoryService, useValue: categoryService }
       ]
     }).compileComponents();
@@ -145,6 +160,77 @@ describe('Recurring', () => {
 
     expect(component.month()).toBe('2026-06');
     expect(recurringService.occurrences).toHaveBeenCalledWith('2026-06');
+  });
+
+  it('should default the target to the first account and send accountId', () => {
+    recurringService.create.and.returnValue(of(spotify));
+    component.openCreate();
+
+    expect(component.form.controls.target.value).toBe('account:a1');
+    expect(component.isCardSelected()).toBeFalse();
+
+    component.form.patchValue({ description: 'Academia', amount: 89.9 });
+    component.submit();
+
+    expect(recurringService.create).toHaveBeenCalledWith(
+      jasmine.objectContaining({ accountId: 'a1' }));
+    expect(recurringService.create.calls.mostRecent().args[0].cardId).toBeUndefined();
+  });
+
+  it('should send cardId when a card is selected as target', () => {
+    recurringService.create.and.returnValue(of(netflix));
+    component.openCreate();
+    component.form.patchValue({ description: 'Netflix', amount: 55.9, target: 'card:k1' });
+
+    expect(component.isCardSelected()).toBeTrue();
+
+    component.submit();
+
+    expect(recurringService.create).toHaveBeenCalledWith(
+      jasmine.objectContaining({ cardId: 'k1' }));
+    expect(recurringService.create.calls.mostRecent().args[0].accountId).toBeUndefined();
+  });
+
+  it('should offer cards for expenses but hide them for income', () => {
+    component.openCreate();
+    expect(component.cardsForType()).toEqual(cards);
+
+    component.form.controls.type.setValue('INCOME');
+    expect(component.cardsForType()).toEqual([]);
+  });
+
+  it('should move the target back to an account when switching to income with a card selected', () => {
+    component.openCreate();
+    component.form.patchValue({ target: 'card:k1' });
+
+    component.form.controls.type.setValue('INCOME');
+    component.onTypeChange();
+
+    expect(component.form.controls.target.value).toBe('account:a1');
+    expect(component.isCardSelected()).toBeFalse();
+  });
+
+  it('should prefill the target with the card when editing a card-based recurring', () => {
+    component.openEdit(netflix);
+
+    expect(component.form.controls.target.value).toBe('card:k1');
+    expect(component.isCardSelected()).toBeTrue();
+  });
+
+  it('should render the credit method badge and "na fatura" instead of the paid checkbox', () => {
+    recurringService.list.and.returnValue(of([netflix]));
+    recurringService.occurrences.and.returnValue(of([
+      { ...occurrence, recurringId: 'r2', cardName: 'Nubank', method: 'CREDITO', accountName: null, paid: true }
+    ]));
+    component.ngOnInit();
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain('Nubank');
+    expect(text).toContain('Crédito');
+    expect(text).toContain('na fatura');
+    expect(fixture.nativeElement.querySelector('.paid-check')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.method-credito')).not.toBeNull();
   });
 
   it('should show backend message when save fails', () => {

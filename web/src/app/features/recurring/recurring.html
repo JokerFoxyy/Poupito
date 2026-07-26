@@ -51,12 +51,24 @@
       </div>
       <div class="days-row">
         <div class="field">
-          <label for="r-account">Conta</label>
-          <select id="r-account" formControlName="accountId">
-            @for (account of accounts(); track account.id) {
-              <option [value]="account.id">{{ account.name }}</option>
+          <label for="r-target">Pagar com</label>
+          <select id="r-target" formControlName="target">
+            <optgroup label="Contas">
+              @for (account of accounts(); track account.id) {
+                <option [value]="'account:' + account.id">{{ account.name }}</option>
+              }
+            </optgroup>
+            @if (cardsForType().length > 0) {
+              <optgroup label="Cartões de crédito">
+                @for (card of cardsForType(); track card.id) {
+                  <option [value]="'card:' + card.id">{{ card.name }}</option>
+                }
+              </optgroup>
             }
           </select>
+          @if (isCardSelected()) {
+            <div class="field-hint">Entra na fatura do cartão; a quitação é o pagamento da fatura.</div>
+          }
         </div>
         <div class="field">
           <label for="r-category">Categoria</label>
@@ -87,7 +99,7 @@
     <table>
       <tr>
         <th>Fixo</th>
-        <th>Conta</th>
+        <th>Pago com</th>
         <th>Dia</th>
         <th class="amount-col">Valor</th>
         <th>Pago no mês</th>
@@ -103,20 +115,30 @@
             {{ recurring.description }}
             @if (!recurring.active) { <span class="badge">inativo</span> }
           </td>
-          <td>{{ recurring.accountName }}</td>
+          <td>
+            {{ recurring.cardName ?? recurring.accountName }}
+            <span class="method-badge" [class.method-credito]="recurring.method === 'CREDITO'"
+                  [class.method-debito]="recurring.method === 'DEBITO'"
+                  [class.method-dinheiro]="recurring.method === 'DINHEIRO'">
+              {{ methodLabels[recurring.method] }}
+            </span>
+          </td>
           <td>dia {{ recurring.dayOfMonth }}</td>
           <td class="amount-col" [class.pos]="recurring.type === 'INCOME'">
             {{ recurring.type === 'INCOME' ? '+' : '' }}{{ recurring.amount | currency: 'BRL' }}
           </td>
           <td>
             @if (occurrenceFor(recurring.id); as occurrence) {
-              @if (occurrence.materialized) {
+              @if (!occurrence.materialized) {
+                <span class="muted">não gerado</span>
+              } @else if (recurring.cardId) {
+                <!-- no cartão a quitação é o pagamento da fatura, não um checkbox por mês -->
+                <span class="muted">na fatura</span>
+              } @else {
                 <label class="paid-check">
                   <input type="checkbox" [checked]="occurrence.paid" (change)="togglePaid(occurrence)" />
                   {{ occurrence.paid ? 'Pago' : 'Pendente' }}
                 </label>
-              } @else {
-                <span class="muted">não gerado</span>
               }
             } @else {
               <span class="muted">—</span>
