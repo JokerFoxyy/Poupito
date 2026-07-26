@@ -1,11 +1,12 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CurrencyPipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 
 import { MonthPicker } from '../../shared/month-picker';
 import { AccountStore } from '../../core/state/account.store';
+import { CardStore } from '../../core/state/card.store';
 import { CategoryStore } from '../../core/state/category.store';
-import { Category } from '../settings/settings.models';
+import { Card, Category, PAYMENT_METHOD_LABELS } from '../settings/settings.models';
 import { RecurringService } from './recurring.service';
 import { Occurrence, Recurring as RecurringModel, RecurringType } from './recurring.models';
 
@@ -18,6 +19,7 @@ import { Occurrence, Recurring as RecurringModel, RecurringType } from './recurr
 export class Recurring implements OnInit {
   private readonly recurringService = inject(RecurringService);
   private readonly accountStore = inject(AccountStore);
+  private readonly cardStore = inject(CardStore);
   private readonly categoryStore = inject(CategoryStore);
   private readonly formBuilder = inject(FormBuilder);
 
@@ -25,16 +27,26 @@ export class Recurring implements OnInit {
   readonly recurrings = signal<RecurringModel[]>([]);
   readonly occurrences = signal<Occurrence[]>([]);
   readonly accounts = this.accountStore.accounts;
+  readonly cards = this.cardStore.cards;
   readonly categories = this.categoryStore.categories;
   readonly showForm = signal(false);
   readonly editing = signal<RecurringModel | null>(null);
   readonly errorMessage = signal<string | null>(null);
+  readonly methodLabels = PAYMENT_METHOD_LABELS;
+
+  /**
+   * Totais do mês selecionado. Somam as **ocorrências** (não a lista crua de fixos), então já
+   * respeitam quem realmente incide no mês: inativos e encerrados ficam de fora.
+   */
+  readonly totalExpenses = computed(() => this.sumByType('EXPENSE'));
+  readonly totalIncome = computed(() => this.sumByType('INCOME'));
 
   readonly form = this.formBuilder.nonNullable.group({
     description: ['', [Validators.required, Validators.maxLength(200)]],
     amount: [null as number | null, [Validators.required, Validators.min(0.01)]],
     type: ['EXPENSE' as RecurringType, Validators.required],
-    accountId: ['', Validators.required],
+    // "Pagar com": account:<id> ou card:<id> (mesmo padrão de Transações, sessão #25)
+    target: ['', Validators.required],
     categoryId: ['', Validators.required],
     dayOfMonth: [1, [Validators.required, Validators.min(1), Validators.max(31)]],
     active: [true],
@@ -43,6 +55,7 @@ export class Recurring implements OnInit {
 
   ngOnInit(): void {
     this.accountStore.ensureLoaded();
+    this.cardStore.ensureLoaded();
     this.categoryStore.ensureLoaded();
     this.load();
   }
@@ -78,12 +91,27 @@ export class Recurring implements OnInit {
     return this.categories().filter((category) => category.kind === kind);
   }
 
+  /** Cartão só existe no crédito, que é sempre gasto: em entradas, esconde os cartões. */
+  cardsForType(): Card[] {
+    return this.form.controls.type.value === 'INCOME' ? [] : this.cards();
+  }
+
+  /** Fixo no cartão: a ocorrência entra na fatura, então não há checkbox "pago?" por mês. */
+  isCardSelected(): boolean {
+    return this.form.controls.target.value.startsWith('card:');
+  }
+
   onTypeChange(): void {
     const options = this.categoriesForType();
     if (!options.some((category) => category.id === this.form.controls.categoryId.value)) {
       this.form.controls.categoryId.setValue(options[0]?.id ?? '');
     }
+    // entrada não pode cair em cartão: se havia um cartão escolhido, volta pra primeira conta
+    if (this.form.controls.type.value === 'INCOME' && this.isCardSelected()) {
+      this.form.controls.target.setValue(this.accounts()[0] ? `account:${this.accounts()[0].id}` : '');
+    }
   }
+
 
   openCreate(): void {
     this.editing.set(null);
@@ -92,7 +120,7 @@ export class Recurring implements OnInit {
       description: '',
       amount: null,
       type: 'EXPENSE',
-      accountId: this.accounts()[0]?.id ?? '',
+      target: this.accounts()[0] ? `account:${this.accounts()[0].id}` : '',
       categoryId: '',
       dayOfMonth: 1,
       active: true,
@@ -109,7 +137,7 @@ export class Recurring implements OnInit {
       description: recurring.description,
       amount: recurring.amount,
       type: recurring.type,
-      accountId: recurring.accountId,
+      target: recurring.cardId ? `card:${recurring.cardId}` : `account:${recurring.accountId}`,
       categoryId: recurring.categoryId,
       dayOfMonth: recurring.dayOfMonth,
       active: recurring.active,
@@ -129,11 +157,14 @@ export class Recurring implements OnInit {
       return;
     }
     const raw = this.form.getRawValue();
+    const onCard = raw.target.startsWith('card:');
+    const targetId = raw.target.slice(raw.target.indexOf(':') + 1);
     const payload = {
       description: raw.description,
       amount: raw.amount as number,
       type: raw.type,
-      accountId: raw.accountId,
+      // conta XOR cartão: manda exatamente um dos dois (o backend rejeita os dois juntos)
+      ...(onCard ? { cardId: targetId } : { accountId: targetId }),
       categoryId: raw.categoryId,
       dayOfMonth: raw.dayOfMonth,
       active: raw.active,
@@ -167,6 +198,12 @@ export class Recurring implements OnInit {
 
   private loadOccurrences(): void {
     this.recurringService.occurrences(this.month()).subscribe((occurrences) => this.occurrences.set(occurrences));
+  }
+
+  private sumByType(type: RecurringType): number {
+    return this.occurrences()
+      .filter((occurrence) => occurrence.type === type)
+      .reduce((total, occurrence) => total + occurrence.amount, 0);
   }
 }
 

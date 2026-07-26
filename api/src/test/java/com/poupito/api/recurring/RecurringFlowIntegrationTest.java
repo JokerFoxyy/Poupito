@@ -33,6 +33,7 @@ class RecurringFlowIntegrationTest {
 
 	private HttpHeaders headers;
 	private String accountId;
+	private String cardId;
 	private String expenseCategoryId;
 	private String incomeCategoryId;
 
@@ -43,8 +44,10 @@ class RecurringFlowIntegrationTest {
 				String.class);
 		headers = AuthTestSupport.bearer(register);
 		accountId = idOf(post("/v1/accounts", Map.of("name", "Uniclass", "type", "CHECKING")));
+		cardId = idOf(post("/v1/cards", Map.of("name", "Nubank", "accountId", accountId,
+				"closingDay", 3, "dueDay", 10)));
 		expenseCategoryId = idOf(post("/v1/categories", Map.of("name", "Assinaturas", "kind", "EXPENSE")));
-		incomeCategoryId = idOf(post("/v1/categories", Map.of("name", "SalÃ¡rio", "kind", "INCOME")));
+		incomeCategoryId = idOf(post("/v1/categories", Map.of("name", "Salário", "kind", "INCOME")));
 	}
 
 	private ResponseEntity<String> post(String url, Map<String, ?> body) {
@@ -85,7 +88,7 @@ class RecurringFlowIntegrationTest {
 	void shouldMaterializeMarkPaidAndReflectInTransactions() throws Exception {
 		post("/v1/recurring", fixo("Spotify", "EXPENSE", expenseCategoryId, 10));
 
-		// materializa julho â†’ cria a ocorrÃªncia (transaÃ§Ã£o nÃ£o paga)
+		// materializa julho → cria a ocorrência (transação não paga)
 		JsonNode occurrences = objectMapper.readTree(
 				rest.exchange("/v1/recurring/materialize?month=2026-07", HttpMethod.POST,
 						new HttpEntity<>(headers), String.class).getBody());
@@ -93,12 +96,12 @@ class RecurringFlowIntegrationTest {
 		assertThat(occurrences.get(0).get("paid").asBoolean()).isFalse();
 		String transactionId = occurrences.get(0).get("transactionId").asText();
 
-		// aparece em transaÃ§Ãµes com paid=false
+		// aparece em transações com paid=false
 		JsonNode july = objectMapper.readTree(get("/v1/transactions?month=2026-07").getBody());
 		assertThat(july.get("totalElements").asLong()).isEqualTo(1);
 		assertThat(july.get("content").get(0).get("paid").asBoolean()).isFalse();
 
-		// materializar de novo Ã© idempotente (nÃ£o duplica)
+		// materializar de novo é idempotente (não duplica)
 		rest.exchange("/v1/recurring/materialize?month=2026-07", HttpMethod.POST,
 				new HttpEntity<>(headers), String.class);
 		assertThat(objectMapper.readTree(get("/v1/transactions?month=2026-07").getBody())
@@ -110,9 +113,74 @@ class RecurringFlowIntegrationTest {
 		assertThat(paid.getStatusCode()).isEqualTo(HttpStatus.OK);
 		assertThat(objectMapper.readTree(paid.getBody()).get("paid").asBoolean()).isTrue();
 
-		// ocorrÃªncias agora refletem pago
+		// ocorrências agora refletem pago
 		JsonNode after = objectMapper.readTree(get("/v1/recurring/occurrences?month=2026-07").getBody());
 		assertThat(after.get(0).get("paid").asBoolean()).isTrue();
+	}
+
+	@Test
+	void shouldCreateRecurringOnCardAndLinkOccurrenceToInvoice() throws Exception {
+		ResponseEntity<String> created = post("/v1/recurring",
+				Map.of("description", "Netflix", "amount", "55.90", "type", "EXPENSE",
+						"cardId", cardId, "categoryId", expenseCategoryId, "dayOfMonth", 10, "active", true));
+		assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+		JsonNode body = objectMapper.readTree(created.getBody());
+		assertThat(body.get("cardId").asText()).isEqualTo(cardId);
+		assertThat(body.get("cardName").asText()).isEqualTo("Nubank");
+		assertThat(body.get("method").asText()).isEqualTo("CREDITO");
+		assertThat(body.get("accountId").isNull()).isTrue();
+
+		// materializa julho: a ocorrência entra na fatura do cartão (fechamento dia 3 → fatura de agosto)
+		JsonNode occurrences = objectMapper.readTree(
+				rest.exchange("/v1/recurring/materialize?month=2026-07", HttpMethod.POST,
+						new HttpEntity<>(headers), String.class).getBody());
+		assertThat(occurrences.get(0).get("materialized").asBoolean()).isTrue();
+		assertThat(occurrences.get(0).get("method").asText()).isEqualTo("CREDITO");
+		// no cartão a quitação é o pagamento da fatura, então a ocorrência já nasce paga
+		assertThat(occurrences.get(0).get("paid").asBoolean()).isTrue();
+
+		// a transação criada está vinculada ao cartão
+		JsonNode july = objectMapper.readTree(get("/v1/transactions?month=2026-07").getBody());
+		JsonNode transaction = july.get("content").get(0);
+		assertThat(transaction.get("cardId").asText()).isEqualTo(cardId);
+		assertThat(transaction.get("method").asText()).isEqualTo("CREDITO");
+
+		// e a fatura de agosto (fechamento dia 3) existe com o valor do fixo — era o ponto do bug:
+		// gasto recorrente de cartão não chegava em Faturas porque nem podia ser cadastrado
+		JsonNode invoices = objectMapper.readTree(get("/v1/invoices?month=2026-08").getBody());
+		assertThat(invoices).hasSize(1);
+		assertThat(invoices.get(0).get("cardName").asText()).isEqualTo("Nubank");
+		assertThat(invoices.get(0).get("launchedTotal").decimalValue())
+				.isEqualByComparingTo(new java.math.BigDecimal("55.90"));
+	}
+
+	@Test
+	void shouldReturn400_whenNeitherAccountNorCardIsGiven() {
+		ResponseEntity<String> response = post("/v1/recurring",
+				Map.of("description", "x", "amount", "10.00", "type", "EXPENSE",
+						"categoryId", expenseCategoryId, "dayOfMonth", 10));
+
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+		assertThat(response.getBody()).contains("conta OU cartão");
+	}
+
+	@Test
+	void shouldReturn400_whenBothAccountAndCardAreGiven() {
+		ResponseEntity<String> response = post("/v1/recurring",
+				Map.of("description", "x", "amount", "10.00", "type", "EXPENSE",
+						"accountId", accountId, "cardId", cardId,
+						"categoryId", expenseCategoryId, "dayOfMonth", 10));
+
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+	}
+
+	@Test
+	void shouldReturn400_whenIncomeIsOnCard() {
+		ResponseEntity<String> response = post("/v1/recurring",
+				Map.of("description", "x", "amount", "10.00", "type", "INCOME",
+						"cardId", cardId, "categoryId", incomeCategoryId, "dayOfMonth", 10));
+
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
 	}
 
 	@Test
