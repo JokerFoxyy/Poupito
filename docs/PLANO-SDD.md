@@ -244,6 +244,7 @@ Tasks a refinar: (1) gerar o template com Apache POI (mesmas abas/posições do 
 Pré-req: #12 (parser) e #25 (mapeamento de cartão no import). Pode rodar assim que o usuário quiser — não depende da infra.
 
 **#31 — Empréstimos a pessoas / "a receber" (dívidas de terceiros com você)** 📋 PLANEJADA (formaliza a antiga ideia "contas mãe / a receber", decidida com o usuário 2026-07-25) — sessão **maior** (entidade + fluxo novos)
+> ⚠️ **Refinar mais antes de rodar** (usuário, 2026-07-26): o usuário sinalizou que essa sessão precisa de mais refinamento na hora de rodar — não iniciar direto a partir do rascunho abaixo; retomar a conversa com o usuário para fechar os pontos em aberto (modelagem exata, efeito no saldo, telas) antes de escrever o SDD definitivo.
 Motivação: hoje não dá pra registrar dinheiro que **você emprestou** a alguém. Emprestar sai do seu bolso (afeta seu saldo real), mas não é "gasto" — é um **ativo a receber**; e falta um lugar pra consultar, por pessoa, **quanto te devem** e acompanhar o recebimento (inclusive parcelado) mês a mês.
 Decisões a fechar com o usuário no SDD (proposta inicial):
 - **Entidade `Person`/contato** (nome; escopada por usuário) pra agrupar os empréstimos e ver o total por pessoa.
