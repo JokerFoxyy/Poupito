@@ -21,6 +21,20 @@ spring:
     properties:
       mail.smtp.auth: true
       mail.smtp.starttls.enable: true
+  # Tuning pra instância pequena (Lightsail 1GB, Postgres no mesmo host — sessão #24):
+  # pool/threads enxutos evitam que a API sozinha esgote memória/conexões que o
+  # Postgres também precisa. Valores pequenos de propósito, não é sub-dimensionamento
+  # acidental.
+  datasource:
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:5}
+      minimum-idle: ${DB_POOL_MIN_IDLE:2}
+
+server:
+  tomcat:
+    threads:
+      max: ${TOMCAT_THREADS_MAX:50}
+      min-spare: ${TOMCAT_THREADS_MIN_SPARE:10}
 
 # Swagger/OpenAPI desligados em produção (não expor o contrato publicamente)
 springdoc:

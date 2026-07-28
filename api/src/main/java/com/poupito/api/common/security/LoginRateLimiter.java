@@ -1,6 +1,9 @@
 package com.poupito.api.common.security;
 
 import com.poupito.api.common.error.TooManyRequestsException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -16,6 +19,8 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Component
 public class LoginRateLimiter {
+
+	private static final Logger SECURITY_LOG = LoggerFactory.getLogger("com.poupito.api.security");
 
 	private final int maxAttempts;
 	private final Duration window;
@@ -38,6 +43,12 @@ public class LoginRateLimiter {
 			return new Window(existing.count() + 1, existing.resetAt());
 		});
 		if (updated.count() > maxAttempts) {
+			MDC.put("event", "login_rate_limit_exceeded");
+			try {
+				SECURITY_LOG.warn("Rate limit de login excedido");
+			} finally {
+				MDC.clear();
+			}
 			throw new TooManyRequestsException();
 		}
 	}

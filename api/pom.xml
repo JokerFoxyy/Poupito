@@ -47,6 +47,12 @@
 			<artifactId>spring-boot-starter-mail</artifactId>
 		</dependency>
 		<dependency>
+			<!-- Encoder JSON pro logback, usado só no profile prod (logback-spring.xml) -->
+			<groupId>net.logstash.logback</groupId>
+			<artifactId>logstash-logback-encoder</artifactId>
+			<version>8.0</version>
+		</dependency>
+		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt-api</artifactId>
 			<version>${jjwt.version}</version>
@@ -121,6 +127,26 @@
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<!--
+						O rate limit geral da API (sessão #24, ApiRateLimitFilter) roda por trás
+						do mesmo contexto Spring reaproveitado entre quase todas as
+						*FlowIntegrationTest — todas batendo do mesmo IP (localhost) na mesma
+						janela. O default de produção (120 req/min) estouraria em segundos com
+						a suíte inteira. Só o teste dedicado do rate limiter
+						(ApiRateLimitFilterIntegrationTest) testa o comportamento de verdade,
+						sobrescrevendo isso pra baixo via @TestPropertySource (contexto Spring
+						isolado, não afetado por esta config global de build).
+					-->
+					<systemPropertyVariables>
+						<app.security.api-rate-limit.default.max-requests>100000</app.security.api-rate-limit.default.max-requests>
+						<app.security.api-rate-limit.expensive.max-requests>100000</app.security.api-rate-limit.expensive.max-requests>
+					</systemPropertyVariables>
+				</configuration>
 			</plugin>
 			<plugin>
 				<groupId>org.jacoco</groupId>

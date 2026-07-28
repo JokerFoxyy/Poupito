@@ -1,6 +1,9 @@
 package com.poupito.api.common.security;
 
 import com.poupito.api.common.error.TooManyRequestsException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -21,6 +24,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class LoginAttemptLimiter {
 
+	private static final Logger SECURITY_LOG = LoggerFactory.getLogger("com.poupito.api.security");
+
 	private final int maxFailures;
 	private final Duration window;
 	private final Map<String, State> states = new ConcurrentHashMap<>();
@@ -38,6 +43,7 @@ public class LoginAttemptLimiter {
 		Instant now = Instant.now();
 		if (state != null && state.lockedUntil() != null && now.isBefore(state.lockedUntil())) {
 			long seconds = Math.max(1, Duration.between(now, state.lockedUntil()).getSeconds());
+			logSecurityEvent("login_blocked_locked_account");
 			throw new TooManyRequestsException(
 					"Muitas tentativas de login. Tente novamente em alguns minutos.", seconds);
 		}
@@ -46,7 +52,7 @@ public class LoginAttemptLimiter {
 	/** Registra uma falha de login; ao atingir o limite, bloqueia a conta pela duração da janela. */
 	public void recordFailure(String email) {
 		Instant now = Instant.now();
-		states.compute(key(email), (k, existing) -> {
+		State updated = states.compute(key(email), (k, existing) -> {
 			boolean fresh = existing == null || now.isAfter(existing.windowEnd());
 			int failures = fresh ? 1 : existing.failures() + 1;
 			Instant windowEnd = fresh ? now.plus(window) : existing.windowEnd();
@@ -54,6 +60,18 @@ public class LoginAttemptLimiter {
 					: (fresh ? null : existing.lockedUntil());
 			return new State(failures, windowEnd, lockedUntil);
 		});
+		if (updated.lockedUntil() != null && updated.failures() == maxFailures) {
+			logSecurityEvent("login_lockout_triggered");
+		}
+	}
+
+	private void logSecurityEvent(String event) {
+		MDC.put("event", event);
+		try {
+			SECURITY_LOG.warn("Evento de segurança em login: {}", event);
+		} finally {
+			MDC.clear();
+		}
 	}
 
 	/** Zera o estado da conta (login bem-sucedido). */
