@@ -35,11 +35,13 @@ services:
       # menos CPU/RAM — evita drenar o crédito de burst e brigar com o Postgres.
       JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=45 -XX:+UseSerialGC -Xss512k -XX:TieredStopAtLevel=1"
     # Exporta os logs (JSON estruturado, profile prod) pro CloudWatch — sessão #24.
-    # ⚠️ REQUER a IAM role com CloudWatchAgentServerPolicy já anexada à instância
-    # (ver D:\Docs\Poupito\runbook-sessao-24-observabilidade-hardening.md, passo 1.1)
-    # ANTES de subir com esta config — sem a role, o driver awslogs falha e o
-    # container "api" não sobe (docker compose up trava esperando o healthcheck
-    # do postgres, depois o api falha silenciosamente na criação do log stream).
+    # ⚠️ O driver awslogs roda no nível do daemon do Docker (no host), não lê as
+    # variáveis de ambiente deste serviço — as credenciais AWS precisam estar
+    # configuradas pro usuário que roda o dockerd (normalmente root), via
+    # `aws configure` ou `~/.aws/credentials`. Ver
+    # D:\Docs\Poupito\runbook-sessao-24-observabilidade-hardening.md, passo 1.1,
+    # ANTES de subir com esta config — sem credenciais no host, o driver awslogs
+    # falha e o container "api" não sobe.
     logging:
       driver: awslogs
       options:
