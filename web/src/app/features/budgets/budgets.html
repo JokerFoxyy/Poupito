@@ -32,15 +32,15 @@
       </tr>
       @for (budget of budgets(); track budget.id) {
         <tr>
-          <td>
+          <td data-label="Categoria">
             <span class="tag" [style.background]="(budget.categoryColor ?? '#4f8ef7') + '26'"
                   [style.color]="budget.categoryColor ?? '#4f8ef7'">
               {{ budget.categoryIcon }} {{ budget.categoryName }}
             </span>
           </td>
-          <td class="amount-col">{{ budget.budgeted | currency: 'BRL' }}</td>
-          <td class="amount-col" [class.neg]="budget.over">{{ budget.spent | currency: 'BRL' }}</td>
-          <td class="bar-col">
+          <td class="amount-col" data-label="Orçado">{{ budget.budgeted | currency: 'BRL' }}</td>
+          <td class="amount-col" data-label="Realizado" [class.neg]="budget.over">{{ budget.spent | currency: 'BRL' }}</td>
+          <td class="bar-col" data-label="Progresso">
             <div class="bar-bg">
               <div class="bar" [class.over]="budget.over" [style.width.%]="barWidth(budget)"></div>
             </div>

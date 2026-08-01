@@ -102,12 +102,8 @@ h1 {
   color: var(--muted);
 }
 
-.row-actions {
-  display: flex;
-  gap: 14px;
-  justify-content: flex-end;
-  white-space: nowrap;
-}
+/* .row-actions vive em styles.css (sessão #33) — a cópia local aqui usava
+   `display: flex` no <td> e sobrescrevia a correção de alinhamento global. */
 
 .link {
   background: none;
