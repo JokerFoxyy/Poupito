@@ -143,6 +143,37 @@ body {
 }
 .panel h2 { font-size: var(--text-md); margin-bottom: var(--space-4); color: var(--text); }
 
+/* Cards/painéis com leve elevação no hover — dá profundidade sem exagerar
+   (sessão #33, pedido do usuário: "menos cara de IA e mais bonitinho"). */
+.card, .panel {
+  transition: box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+.card:hover, .panel:hover {
+  box-shadow: 0 4px 16px color-mix(in srgb, #000 8%, transparent);
+}
+
+/* Modal com entrada suave (fade do backdrop + leve scale-up do conteúdo) —
+   antes aparecia instantâneo em todas as 4 telas que usam esse padrão
+   (transactions/investments/goals/budgets). Definido aqui, global, porque a
+   marcação `.modal-backdrop`/`.modal` se repete igual em cada uma delas. */
+@keyframes modal-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modal-scale-in {
+  from { opacity: 0; transform: scale(.96) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.modal-backdrop { animation: modal-fade-in 180ms ease; }
+.modal-backdrop > .modal { animation: modal-scale-in 220ms cubic-bezier(.2, .8, .3, 1); }
+
+/* Barra de progresso anima quando o valor muda (orçamentos/metas) — em vez de
+   "pular" pro tamanho final, cresce/encolhe suavemente. */
+.bar { transition: width 500ms cubic-bezier(.2, .8, .3, 1), background var(--transition-fast); }
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-backdrop, .modal-backdrop > .modal { animation: none; }
+  .bar { transition: none; }
+  .card, .panel { transition: none; }
+}
+
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th {
   text-align: left;

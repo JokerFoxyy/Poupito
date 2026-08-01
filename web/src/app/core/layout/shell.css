@@ -33,6 +33,7 @@ aside {
   font-size: 14px;
   margin-bottom: 4px;
   text-decoration: none;
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
 .nav-item:hover { background: var(--brand-navy-2); color: var(--sidebar-text); }
 .nav-item.active {
@@ -166,4 +167,8 @@ main {
   .logo { padding: 8px; }
   nav { display: flex; }
   .sidebar-footer { margin-top: 0; margin-left: auto; border-top: none; display: flex; gap: 8px; align-items: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-item, .theme-toggle, .menu-toggle { transition: none; }
 }

@@ -27,6 +27,12 @@ h1 {
   margin-bottom: 8px;
   font-weight: 600;
 }
+.goal-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent);
+}
 
 .goal-footer {
   display: flex;
