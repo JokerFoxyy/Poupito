@@ -60,9 +60,9 @@
         </tr>
         @for (item of report()?.investments ?? []; track item.id) {
           <tr>
-            <td>{{ item.name }}<div class="sub-text">{{ item.institution }}</div></td>
-            <td>{{ classLabels[item.assetClass] }}</td>
-            <td class="amount-col">
+            <td data-label="Nome">{{ item.name }}<div class="sub-text">{{ item.institution }}</div></td>
+            <td data-label="Classe">{{ classLabels[item.assetClass] }}</td>
+            <td class="amount-col" data-label="Saldo">
               {{ item.currentBalance | currency: 'BRL' }}
               @if (item.lastPeriodReturnPercentage; as pct) {
                 <div class="pct" [class.pos]="pct >= 0" [class.neg]="pct < 0">{{ pct }}%</div>
@@ -98,14 +98,14 @@
       </tr>
       @for (row of recentEntries(); track row.entry.id) {
         <tr>
-          <td>{{ row.entry.date | date: 'dd/MM/yyyy' }}</td>
-          <td>{{ row.investmentName }}</td>
-          <td>
+          <td data-label="Data">{{ row.entry.date | date: 'dd/MM/yyyy' }}</td>
+          <td data-label="Ativo">{{ row.investmentName }}</td>
+          <td data-label="Tipo">
             <span class="tag" [class.tag-green]="row.entry.type !== 'RESGATE'" [class.tag-red]="row.entry.type === 'RESGATE'">
               {{ entryTypeLabels[row.entry.type] }}
             </span>
           </td>
-          <td class="amount-col">{{ row.entry.amount | currency: 'BRL' }}</td>
+          <td class="amount-col" data-label="Valor">{{ row.entry.amount | currency: 'BRL' }}</td>
           <td class="row-actions">
             <button type="button" class="link danger" (click)="removeEntry(row)">Excluir</button>
           </td>

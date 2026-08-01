@@ -69,9 +69,9 @@
       </tr>
       @for (card of cards(); track card.id) {
         <tr>
-          <td>{{ card.name }}</td>
-          <td>{{ card.accountName ?? '—' }}</td>
-          <td>fecha dia {{ card.closingDay }} · vence dia {{ card.dueDay }}</td>
+          <td data-label="Nome">{{ card.name }}</td>
+          <td data-label="Conta">{{ card.accountName ?? '—' }}</td>
+          <td data-label="Fatura">fecha dia {{ card.closingDay }} · vence dia {{ card.dueDay }}</td>
           <td class="row-actions">
             <button type="button" class="link" (click)="openEdit(card)">Editar</button>
             <button type="button" class="link danger" (click)="remove(card)">Excluir</button>

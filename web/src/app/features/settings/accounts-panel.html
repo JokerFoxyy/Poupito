@@ -45,8 +45,8 @@
       </tr>
       @for (account of accounts(); track account.id) {
         <tr>
-          <td>{{ account.name }}</td>
-          <td>{{ typeLabels[account.type] }}</td>
+          <td data-label="Nome">{{ account.name }}</td>
+          <td data-label="Tipo">{{ typeLabels[account.type] }}</td>
           <td class="row-actions">
             <button type="button" class="link" (click)="openEdit(account)">Editar</button>
             <button type="button" class="link danger" (click)="remove(account)">Excluir</button>

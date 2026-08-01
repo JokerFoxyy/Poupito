@@ -55,13 +55,13 @@
       </tr>
       @for (category of categories(); track category.id) {
         <tr>
-          <td>
+          <td data-label="Categoria">
             <span class="tag" [style.background]="(category.color ?? '#4f8ef7') + '26'"
                   [style.color]="category.color ?? '#4f8ef7'">
               {{ category.icon }} {{ category.name }}
             </span>
           </td>
-          <td>{{ kindLabels[category.kind] }}</td>
+          <td data-label="Tipo">{{ kindLabels[category.kind] }}</td>
           <td class="row-actions">
             <button type="button" class="link" (click)="openEdit(category)">Editar</button>
             <button type="button" class="link danger" (click)="remove(category)">Excluir</button>

@@ -26,6 +26,38 @@
   --sidebar-text: #e2e8f0;
   --sidebar-muted: #94a3b8;
   --sidebar-border: #334155;
+
+  /* ── Tokens de design (sessão #33) ──────────────────────────────────────
+     Antes desta sessão os valores eram soltos: font-size vivia entre 11–15px
+     e saltava direto pra 24 (sem hierarquia), border-radius tinha 6 valores
+     diferentes por acúmulo, e espaçamento era escolhido por componente.
+     Valor novo em componente deve usar estes tokens, nunca número solto. */
+
+  /* Tipografia — num app financeiro o NÚMERO é o conteúdo, então a escala
+     precisa de salto de verdade entre rótulo e valor. */
+  --text-xs: 11px;    /* chips, tags, metadados */
+  --text-sm: 12px;    /* rótulos, cabeçalho de tabela, hints */
+  --text-base: 14px;  /* corpo, inputs, botões */
+  --text-md: 16px;    /* títulos de painel */
+  --text-lg: 20px;    /* títulos de página */
+  --text-xl: 28px;    /* valores financeiros secundários */
+  --text-2xl: 34px;   /* valor financeiro principal (saldo do mês) */
+
+  /* Raio — 3 níveis com propósito: controles, superfícies, pílulas. */
+  --radius-sm: 8px;   /* inputs, botões, selects */
+  --radius-md: 12px;  /* cards, painéis, modais */
+  --radius-pill: 999px; /* tags, badges, chips */
+
+  /* Espaçamento — ritmo vertical de 4px. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+
+  /* Movimento — micro-interação de botões/links (sessão #33). */
+  --transition-fast: 150ms ease;
 }
 
 :root[data-theme="dark"] {
@@ -63,55 +95,79 @@ body {
   background: var(--accent);
   color: #fff;
   border: none;
-  border-radius: 10px;
-  padding: 9px 16px;
-  font-size: 14px;
+  border-radius: var(--radius-sm);
+  padding: 9px var(--space-4);
+  font-size: var(--text-base);
   font-weight: 600;
   cursor: pointer;
+  transition: background var(--transition-fast), transform var(--transition-fast),
+              box-shadow var(--transition-fast);
 }
-.btn:hover { background: var(--accent-strong); }
+.btn:hover:not(:disabled) {
+  background: var(--accent-strong);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+/* Feedback tátil no clique — o botão "afunda" de leve. */
+.btn:active:not(:disabled) { transform: scale(.97); box-shadow: none; }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 
 .card {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 18px;
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
 }
 .card .label {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: .5px;
-  margin-bottom: 6px;
+  margin-bottom: var(--space-2);
 }
-.card .value { font-size: 24px; font-weight: 700; }
-.card .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+/* Valor financeiro é o conteúdo principal do card — escala grande de propósito,
+   pra criar a hierarquia que faltava (sessão #33). */
+.card .value {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -.02em;
+}
+.card .value.hero { font-size: var(--text-2xl); }
+.card .sub { font-size: var(--text-sm); color: var(--muted); margin-top: var(--space-1); }
 
 .panel {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 20px;
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
 }
-.panel h2 { font-size: 15px; margin-bottom: 16px; color: var(--text); }
+.panel h2 { font-size: var(--text-md); margin-bottom: var(--space-4); color: var(--text); }
 
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th {
   text-align: left;
   color: var(--muted);
   font-weight: 600;
-  padding: 8px;
+  padding: var(--space-2);
   border-bottom: 1px solid var(--border);
-  font-size: 12px;
+  font-size: var(--text-sm);
+  text-transform: uppercase;
+  letter-spacing: .04em;
 }
-td { padding: 9px 8px; border-bottom: 1px solid var(--border); }
+/* vertical-align middle (não o `baseline` default): linhas com conteúdo de
+   alturas diferentes (ex.: descrição com chips de tag embaixo) mantêm todas as
+   colunas visualmente alinhadas entre si — sessão #33. */
+td {
+  padding: 9px var(--space-2);
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
 
 .tag {
   display: inline-block;
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 11px;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
   font-weight: 600;
 }
 
@@ -128,26 +184,30 @@ td { padding: 9px 8px; border-bottom: 1px solid var(--border); }
 .chart-box { position: relative; height: 240px; }
 
 /* Formulários */
-.field { margin-bottom: 14px; }
+.field { margin-bottom: var(--space-4); }
 .field label {
   display: block;
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--muted);
-  margin-bottom: 6px;
+  margin-bottom: var(--space-2);
 }
 .field input {
   width: 100%;
   background: var(--card2);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 12px;
-  font-size: 14px;
+  border-radius: var(--radius-sm);
+  padding: 10px var(--space-3);
+  font-size: var(--text-base);
   color: var(--text);
   outline: none;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
-.field input:focus { border-color: var(--accent); }
-.field .error { font-size: 12px; color: var(--red); margin-top: 4px; }
-.field .field-hint { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.4; }
+.field input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.field .error { font-size: var(--text-sm); color: var(--red); margin-top: var(--space-1); }
+.field .field-hint { font-size: var(--text-sm); color: var(--muted); margin-top: var(--space-2); line-height: 1.4; }
 
 /* Campo de senha com botão "mostrar/ocultar" (olho) — sessão #29 */
 /* O wrapper envolve só o input + botão, então o botão se alinha à altura do
@@ -177,28 +237,28 @@ td { padding: 9px 8px; border-bottom: 1px solid var(--border); }
   background: color-mix(in srgb, var(--red) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--red) 40%, transparent);
   color: var(--red);
-  border-radius: 8px;
-  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  padding: 10px var(--space-3);
   font-size: 13px;
-  margin-bottom: 14px;
+  margin-bottom: var(--space-4);
 }
 
 .form-success {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
   color: var(--accent);
-  border-radius: 8px;
-  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  padding: 10px var(--space-3);
   font-size: 13px;
   line-height: 1.5;
-  margin-bottom: 14px;
+  margin-bottom: var(--space-4);
 }
 
 /* Badge de método de pagamento (derivado) — usado em Transações e Fixos (sessões #25/#32) */
 .method-badge {
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 600;
-  border-radius: 10px;
+  border-radius: var(--radius-pill);
   padding: 2px 9px;
   white-space: nowrap;
 }
@@ -221,24 +281,24 @@ td { padding: 9px 8px; border-bottom: 1px solid var(--border); }
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: var(--space-4);
 }
 .panel-header h2 { margin-bottom: 0; }
 
 .inline-form {
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 14px;
-  margin-bottom: 16px;
+  border-radius: var(--radius-sm);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
   background: var(--card2);
 }
 .inline-form select {
   width: 100%;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 12px;
-  font-size: 14px;
+  border-radius: var(--radius-sm);
+  padding: 10px var(--space-3);
+  font-size: var(--text-base);
   color: var(--text);
 }
 .inline-form input { background: var(--bg); }
@@ -251,18 +311,59 @@ td { padding: 9px 8px; border-bottom: 1px solid var(--border); }
 
 .form-actions {
   display: flex;
-  gap: 8px;
-  margin-top: 4px;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
 }
 
 .btn-ghost {
   background: none;
   border: 1px solid var(--border);
   color: var(--muted);
-  border-radius: 8px;
-  padding: 9px 16px;
-  font-size: 14px;
+  border-radius: var(--radius-sm);
+  padding: 9px var(--space-4);
+  font-size: var(--text-base);
   cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast),
+              border-color var(--transition-fast), transform var(--transition-fast);
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--card2);
+  color: var(--text);
+  border-color: var(--muted);
+}
+.btn-ghost:active:not(:disabled) { transform: scale(.97); }
+.btn-ghost:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Foco visível desenhado, consistente em todos os controles (sessão #33) —
+   antes cada elemento herdava o outline default do browser, que some no dark. */
+.btn:focus-visible,
+.btn-ghost:focus-visible,
+.link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Estado de loading reutilizável pra botões de submit (sessão #33) — aplicar
+   `[class.loading]="submitting()"` no .btn. Esconde o texto (sem soltar o layout,
+   já que .btn-label vira invisível mas ocupa espaço) e mostra um spinner girando.
+   Wiring nos formulários fica pra uma próxima sessão — aqui só o utilitário CSS. */
+.btn.loading { color: transparent; pointer-events: none; position: relative; }
+.btn.loading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 16px;
+  height: 16px;
+  border: 2px solid color-mix(in srgb, #fff 35%, transparent);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: btn-spin .6s linear infinite;
+}
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .btn.loading::after { animation: none; }
+  .btn, .btn-ghost, .link { transition: none; }
 }
 
 .empty {
@@ -277,26 +378,96 @@ td { padding: 9px 8px; border-bottom: 1px solid var(--border); }
   margin-bottom: 12px;
 }
 
+/* Ações de linha (Editar/Excluir) — sessão #33.
+   NÃO usar `display: flex` aqui: esta classe é aplicada direto no <td>, e o flex
+   sobrescreve o `display: table-cell` nativo, tirando a célula do layout da tabela
+   e quebrando o `vertical-align` que a alinha com as demais colunas (era o bug
+   reportado: "Editar/Excluir não alinha com o restante"). Espaçamento inline
+   resolve sem tirar a célula da tabela — e funciona igual no <span> de Metas. */
 .row-actions {
-  display: flex;
-  gap: 14px;
-  justify-content: flex-end;
+  text-align: right;
   white-space: nowrap;
 }
+.row-actions > * + * { margin-left: 14px; }
 
 .link {
   background: none;
   border: none;
   color: var(--accent);
-  font-size: 12px;
+  font-size: var(--text-sm);
   cursor: pointer;
   padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
+.link:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .link.danger { color: var(--red); }
+.link.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--red) 12%, transparent); }
 .link:disabled { color: var(--muted); cursor: not-allowed; }
 
 input[type='color'] {
   height: 40px;
   padding: 4px;
   cursor: pointer;
+}
+
+/* ── Tabelas viram cards empilhados no mobile (sessão #33) ──────────────────
+   Antes, nenhuma das telas de tabela tinha @media: no celular a tabela ficava
+   mais larga que a viewport, forçando scroll horizontal, e a coluna de ações
+   (Editar/Excluir) sumia fora da tela. Decisão do usuário (2026-08-01): colapsar
+   em cards em vez de scroll horizontal com coluna fixa.
+
+   Cada <td> precisa de `data-label="Nome da coluna"` no HTML — é o que vira o
+   rótulo à esquerda no card (o <th> fica escondido, não faz sentido repetir
+   cabeçalho por card). */
+@media (max-width: 640px) {
+  table { display: block; }
+
+  /* linha de cabeçalho (a que contém <th>) não aparece no modo card */
+  table tr:has(th) { display: none; }
+
+  table tr {
+    display: block;
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    margin-bottom: var(--space-3);
+  }
+
+  table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-1) 0;
+    border-bottom: none;
+    text-align: right;
+  }
+
+  table td::before {
+    content: attr(data-label);
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--muted);
+    font-weight: 600;
+    flex-shrink: 0;
+    text-align: left;
+  }
+
+  /* célula sem conteúdo não vira linha vazia no card */
+  table td:empty { display: none; }
+
+  /* ações ficam numa faixa própria no rodapé do card, sem rótulo */
+  table td.row-actions {
+    justify-content: flex-end;
+    border-top: 1px solid var(--border);
+    margin-top: var(--space-2);
+    padding-top: var(--space-3);
+  }
+  table td.row-actions::before { content: none; }
+
+  /* o valor financeiro continua sendo o destaque do card */
+  table td.amount-col { font-size: var(--text-md); font-weight: 700; }
 }
