@@ -1,5 +1,18 @@
 @import "tailwindcss";
 
+/* Manrope — self-hosted (sessão #33, substitui a Inter). Fonte variável (um
+   arquivo só cobre 400–800): geométrica e moderna, mas ainda confiável — foge
+   da Inter (a default de praticamente todo app gerado por IA) sem parecer
+   "divertida demais". Baixada de fonts.google.com/specimen/Manrope, subset
+   latin (cobre acentuação do pt-BR: á é í ó ú ã õ ç, tudo em U+0000-00FF). */
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url('/fonts/manrope-variable.woff2') format('woff2');
+}
+
 /* Identidade visual Poupito (sessão #23 — "Crescimento Seguro").
    Azul-marinho = confiança/estabilidade; verde esmeralda = crescimento/ação.
    Tema CLARO é o padrão; o dark é ativado por [data-theme="dark"] no <html>. */
@@ -79,7 +92,7 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  font-family: 'Inter', 'Segoe UI', Roboto, system-ui, -apple-system, sans-serif;
+  font-family: 'Manrope', 'Segoe UI', Roboto, system-ui, -apple-system, sans-serif;
 }
 
 body {
@@ -131,6 +144,7 @@ body {
   font-weight: 700;
   line-height: 1.15;
   letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums; /* dígitos com largura fixa — números alinham entre si */
 }
 .card .value.hero { font-size: var(--text-2xl); }
 .card .sub { font-size: var(--text-sm); color: var(--muted); margin-top: var(--space-1); }
@@ -193,6 +207,9 @@ td {
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
 }
+/* Dígitos com largura fixa em toda coluna de valor — vale pra todas as
+   tabelas (transações, fixos, orçamentos, investimentos...), não só uma. */
+.amount-col { font-variant-numeric: tabular-nums; }
 
 .tag {
   display: inline-block;
