@@ -228,6 +228,37 @@ Fecha a pendência da #25 ("fixo em cartão = melhoria futura"): antes, `recurri
 - Backup: `infra/scripts/backup.sh` (pg_dump → gzip → S3, cron no host) com lifecycle de 30 dias no bucket (`configure-s3-lifecycle.sh`, roda uma vez). Swap de 2GB e clone do repo: `infra/scripts/setup-host.sh` (roda uma vez na instância nova).
 - Passo a passo completo (domínio, DNS, criação da instância, secrets) em `infra/README.md` — são passos manuais que só o usuário pode executar (conta AWS, pagamento, DNS).
 
+## Observabilidade + Hardening (sessão #24)
+
+- **Rate limiting geral da API**: `ApiRateLimiter` (janela fixa in-memory, por regra nomeada
+  + IP — generaliza o `LoginRateLimiter` que já existia só pra auth) + `ApiRateLimitFilter`
+  (`OncePerRequestFilter`), registrado **antes** do `JwtAuthFilter` na cadeia de segurança —
+  protege também os endpoints públicos (login/register), não só os autenticados. Duas regras:
+  `default` (toda a API, `app.security.api-rate-limit.default.*`, 120 req/min) e `expensive`
+  (`/v1/transactions/export`, `/v1/import/**` — mais caros de CPU/IO — 10 req/min). 429 com
+  `Retry-After`, corpo no mesmo formato `ApiError` do resto da API (escrito manualmente no
+  filtro, já que roda antes do `@RestControllerAdvice`). Usa `getServletPath()` (não
+  `getRequestURI()`) pra casar path sem o context-path `/api` — `getRequestURI()` incluiria o
+  prefixo e nunca bateria com os padrões configurados.
+- **Logging estruturado**: `logback-spring.xml` com `logstash-logback-encoder` — profile
+  `prod` emite JSON no stdout (o `docker logs`/CloudWatch Agent captura), dev/test continua em
+  texto legível. Logger dedicado `com.poupito.api.security` (usado por `LoginAttemptLimiter`,
+  `LoginRateLimiter` e `ApiRateLimitFilter`) carrega `event`/`ip`/`path` no MDC pra eventos de
+  segurança (login falho, lockout, rate limit excedido) — filtráveis depois no CloudWatch
+  Insights.
+- **Tuning de produção** (`application-prod.yml`): `spring.datasource.hikari.maximum-pool-size`
+  (5) e `server.tomcat.threads.max` (50) — enxutos de propósito pra instância Lightsail de
+  1GB (Postgres roda no mesmo host).
+- **Gotcha de teste**: o rate limit geral roda por trás do mesmo contexto Spring reaproveitado
+  entre quase todas as `*FlowIntegrationTest` (mesmo IP `localhost`) — o `maven-surefire-plugin`
+  (`api/pom.xml`) sobrescreve os limites pra um valor bem alto via `systemPropertyVariables`
+  só durante a suíte; o teste dedicado do filtro (`ApiRateLimitFilterIntegrationTest`)
+  sobrescreve de novo pra baixo via `@TestPropertySource` (contexto Spring isolado).
+- **O que ficou como runbook manual** (não automatizado, requer conta/acesso que só o usuário
+  tem — ver `infra/README.md`): export de logs pro CloudWatch + alarme de lockout, Cloudflare
+  gratuito (WAF/DDoS na borda) e fail2ban no SSH (sem restringir por IP, por causa dos
+  runners do GitHub Actions).
+
 ## Auth & Segurança (sessões #2, #S e #29)
 
 **Modelo de sessão (reescrito na #S):** cookies httpOnly, não JWT no localStorage.

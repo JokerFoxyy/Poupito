@@ -48,3 +48,15 @@ Smoke test rodado nesta sessão com imagens buildadas localmente e `DOMAIN=:80` 
 - `GET /dashboard` (rota client-side) → `200`, `try_files` cai no `index.html` (SPA fallback funcionando).
 
 **O que ainda não foi verificado** (depende de infraestrutura real que só o usuário pode provisionar): TLS automático de verdade (precisa de domínio público + porta 80/443 abertas pro Let's Encrypt validar o desafio HTTP-01), a instância Lightsail em si, o backup rodando contra um bucket S3 real, e o workflow de deploy via SSH contra um host real.
+
+# Observabilidade + Hardening (sessão #24)
+
+O rate limiting geral da API, o logging estruturado (JSON) e o tuning de HikariCP/Tomcat
+(ver `CLAUDE.md`, seção "Observabilidade + Hardening") já vêm prontos no código/imagem —
+não exigem nenhum passo manual. O que falta é infraestrutura **fora da instância**, que só
+o usuário pode provisionar (conta AWS CloudWatch, conta Cloudflare, acesso root à
+instância).
+
+Runbook detalhado (passo a passo com checklist) fora do repo, em
+`D:\Docs\Poupito\runbook-sessao-24-observabilidade-hardening.md` — cobre export de logs
+pro CloudWatch + alarme, Cloudflare gratuito na frente da instância e fail2ban no SSH.
