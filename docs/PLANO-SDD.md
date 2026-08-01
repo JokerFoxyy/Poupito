@@ -349,6 +349,30 @@ Motivação: usar uma LLM pequena rodando dentro da própria infra (o usuário c
 
 Pré-req: nenhum tecnicamente pra começar a *discussão*; recomendado ter o refino visual (#33) e o hardening (#24, já concluído) resolvidos antes de somar uma peça de infra nova e potencialmente cara à stack.
 
+**#39 — SEO** 📋 PLANEJADA — ⚠️ **precisa de organização/pesquisa antes de virar SDD** (pedido do usuário 2026-08-01: "organizar uma sessão de SEO")
+
+Motivação: hoje o app é 100% autenticado — até a sessão #40 (landing pública, ver abaixo), não existia nenhuma página pública indexável; o que um crawler encontra em `/` é, na melhor das hipóteses, a tela de login. SEO de verdade só faz sentido **depois** da #40 existir, porque é a landing/FAQ que vira o conteúdo indexável — o dashboard autenticado nunca deveria ser indexado (dados financeiros do usuário).
+
+Pontos a organizar antes de escrever o SDD (por isso "precisa de organização", não é só rodar):
+1. **Meta tags por rota pública** (`<title>`, `<meta name="description">`, Open Graph/Twitter Card) — hoje `index.html` tem um `<title>` fixo só, sem descrição nem OG; Angular SPA precisa de `Title`/`Meta` do `@angular/platform-browser` setados por componente (landing, FAQ), já que crawlers modernos executam JS mas nem todos, e o tempo até o conteúdo aparecer importa pro ranking.
+2. **`robots.txt` + `sitemap.xml`**: hoje não existem (`web/public/`) — precisam listar só as rotas públicas (`/`, `/faq`, `/login`?) e **bloquear** as rotas autenticadas (`/dashboard`, `/transacoes` etc. — não que um crawler conseguisse renderizar o conteúdo real sem login, mas não custa ser explícito).
+3. **Dados estruturados (JSON-LD)**: `Organization`/`SoftwareApplication` schema na landing, ajuda o Google a entender "o que é isso" além do texto puro.
+4. **Performance/Core Web Vitals**: Lighthouse na landing pública (LCP/CLS/INP) — landing pública tende a ser simples o suficiente pra tirar nota alta, mas vale medir depois de construída, não assumir.
+5. **Domínio canônico**: decidir `www.poupito.com` vs `poupito.com` como canônico (`<link rel="canonical">`) e configurar o redirect coerente (hoje o domínio real de produção é só `poupito.com`, conferir se `www` também resolve e pra onde).
+6. **Google Search Console** (verificação de propriedade, submissão do sitemap) — passo manual do usuário, mesma categoria dos runbooks de infra (CloudWatch/Cloudflare) já registrados na #24.
+
+Pré-req: **#40** (landing pública + FAQ) — SEO precisa ter o que otimizar primeiro.
+
+**#40 — Landing pública + FAQ para novos usuários** ✅ CONCLUÍDA (2026-08-01 — SDD: `docs/session-40-landing-faq/SDD.md`; pedido do usuário: "colocar algumas coisas agora que tá produtivo")
+
+Motivação: antes desta sessão **não existia nenhuma página pública** — `app.routes.ts` tinha `path: ''` casando com o `Shell` (autenticado, atrás do `authGuard`), que redirecionava qualquer visitante não-logado direto pra `/login`. Um usuário novo que chegasse no domínio não tinha como entender do que se trata o app antes de já estar na tela de "Entre para gerenciar suas finanças".
+
+Entregue (ver `CLAUDE.md`, seção "Landing pública + FAQ"): **Landing** (`features/landing/`, rota `/`) explicando o Poupito e suas features, com CTA "Criar conta grátis"; **Faq** (`features/faq/`, rota `/faq`) com 6 perguntas comuns pré-cadastro via `<details>`/`<summary>` nativo. **Reestruturação de rotas sem quebrar nenhum path existente**: a Landing entra como primeira rota com `path: '', pathMatch: 'full'` (essencial — sem isso faria *prefix match* e "roubaria" `/dashboard` etc. do `Shell`, que continua com `path: ''` sem `pathMatch`, mantendo seu comportamento de sempre); `redirectIfAuthenticatedGuard` novo (espelha o `authGuard`) manda usuário já logado direto pro `/dashboard` ao visitar `/`. Todos os paths autenticados (`/dashboard`, `/transacoes` etc.) **permaneceram idênticos**.
+Testes: 9 novos specs (Landing, Faq, guard), 304/304 Karma, cobertura 97,21/87,36/93,97/97,14. Verificado ao vivo: `/` mostra Landing, `/faq` acessível sem sessão, `/dashboard` sem sessão continua redirecionando pro login (comportamento preservado).
+Fora de escopo (vira a #39): SEO propriamente dito (meta tags, sitemap, robots.txt, JSON-LD).
+
+Pré-req: nenhum. Roda **antes** da #39 (SEO depende dela existir).
+
 ### Fase 5 — Futuro (sem sessão planejada ainda)
 
 Ideias soltas: Multi-tenancy real, plano free/pago, cotações via brapi.dev, app mobile consumindo a mesma API. *(A feature "a receber/emprestado — contas mãe" virou a sessão #31, formalizada acima.)*

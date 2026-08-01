@@ -1,0 +1,26 @@
+<div class="faq-page">
+  <header class="faq-header">
+    <a routerLink="/" class="logo">Poup<span>ito</span></a>
+    <a routerLink="/login" class="btn-ghost">Entrar</a>
+  </header>
+
+  <main class="faq-content">
+    <h1>Perguntas frequentes</h1>
+    <p class="lead">Tudo que você precisa saber antes de criar sua conta.</p>
+
+    <div class="faq-list">
+      @for (item of items; track item.question) {
+        <details class="faq-item">
+          <summary>{{ item.question }}</summary>
+          <p>{{ item.answer }}</p>
+        </details>
+      }
+    </div>
+
+    <div class="faq-cta">
+      <p>Ainda com dúvida?</p>
+      <a routerLink="/login" class="btn">Criar conta grátis</a>
+      <a routerLink="/" class="link">Voltar para o início</a>
+    </div>
+  </main>
+</div>

@@ -94,6 +94,29 @@ Angular 20 standalone + signals + `inject()`; Tailwind v4 via `@tailwindcss/post
 
 **Gotcha do Karma:** o `karma.conf.js` referenciado pelo builder `@angular/build:karma` **substitui** a config default em vez de mesclar — se recriar, use `ng generate config karma` e edite (senão os testes quebram com "describe is not defined"). Os thresholds de cobertura (90/80/90/90) vivem no `coverageReporter.check` desse arquivo.
 
+## Landing pública + FAQ (sessão #40)
+
+Antes desta sessão **não existia nenhuma página pública** — `path: ''` casava direto com
+o `Shell` autenticado, que redirecionava qualquer visitante não-logado pro `/login` sem
+contexto nenhum sobre o app.
+
+- **Roteamento** (`app.routes.ts`): `Landing` (`features/landing/`) entra como a
+  **primeira** rota do array, com `path: '', pathMatch: 'full'` — o `pathMatch: 'full'` é
+  essencial, porque path vazio **sem** ele faz *prefix match* (é assim que o `Shell`
+  sempre funcionou, delegando pros filhos `dashboard`/`transacoes`/etc.); com `full`,
+  Landing só intercepta a barra `/` exata, nunca `/dashboard` (que tem segmento restante).
+  Isso permite a Landing coexistir com o `Shell` (que também usa `path: ''`) **sem mudar
+  nenhum path autenticado existente** — `/dashboard`, `/transacoes` etc. continuam
+  idênticos.
+- **`redirectIfAuthenticatedGuard`** (`core/auth/`, espelha o `authGuard` existente):
+  na rota da Landing — se já autenticado, manda pro `/dashboard` direto (sem isso, um
+  usuário logado que voltasse pra `/` veria a landing de novo, já que o `Shell` nunca
+  seria tentado pro path vazio depois que a Landing responde primeiro).
+- **`Faq`** (`features/faq/`, rota `/faq`, pública, sem guard): perguntas comuns
+  pré-cadastro (grátis? dados seguros/LGPD? importa planilha? funciona no celular?),
+  usando `<details>`/`<summary>` nativos (acordeão sem JS de estado).
+- Testes: 9 novos specs (Landing, Faq, guard), 304/304 Karma.
+
 ## Refino visual: tokens, mobile e botões (sessão #33)
 
 - **Tokens de design** em `styles.css` (`:root`): `--text-xs`...`--text-2xl` (escala tipográfica com hierarquia real — antes tudo vivia entre 11-15px e saltava pra 24 sem meio-termo; agora o valor financeiro principal usa `--text-2xl`/`.card .value.hero`), `--radius-sm`/`--radius-md`/`--radius-pill` (3 raios com propósito, substituindo os 6 valores soltos que existiam), `--space-1`...`--space-6` (ritmo de 4px) e `--transition-fast` (150ms, usado em toda micro-interação). **Todo valor novo usa token, nunca número solto.**
