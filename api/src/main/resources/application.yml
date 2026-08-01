@@ -34,6 +34,15 @@ app:
     lockout:
       max-failures: ${LOGIN_LOCKOUT_MAX:5}
       window: ${LOGIN_LOCKOUT_WINDOW:PT5M}
+    # Rate limit geral da API (sessão #24) — cobre todo endpoint, não só login/registro.
+    # "expensive" vale pra export de transações e import de planilha (mais caros de CPU/IO).
+    api-rate-limit:
+      default:
+        max-requests: ${API_RATE_LIMIT_DEFAULT_MAX:120}
+        window: ${API_RATE_LIMIT_DEFAULT_WINDOW:PT1M}
+      expensive:
+        max-requests: ${API_RATE_LIMIT_EXPENSIVE_MAX:10}
+        window: ${API_RATE_LIMIT_EXPENSIVE_WINDOW:PT1M}
   password-reset:
     ttl: ${PASSWORD_RESET_TTL:PT30M}
   frontend:

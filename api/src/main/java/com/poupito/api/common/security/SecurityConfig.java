@@ -21,7 +21,8 @@ public class SecurityConfig {
 	private static final int BCRYPT_STRENGTH = 12;
 
 	@Bean
-	SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter) throws Exception {
+	SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter,
+			ApiRateLimitFilter apiRateLimitFilter) throws Exception {
 		return http
 				// CSRF: a defesa é o cookie SameSite=Strict (não vai em requisição cross-site) + API
 				// JSON same-origin. Sem cookies de sessão de servidor, o token CSRF clássico não se aplica.
@@ -41,6 +42,8 @@ public class SecurityConfig {
 						.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 						.anyRequest().authenticated())
 				.exceptionHandling(ex -> ex.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+				// rate limit roda antes do JWT: protege também os endpoints públicos (login/register)
+				.addFilterBefore(apiRateLimitFilter, UsernamePasswordAuthenticationFilter.class)
 				.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
 				.build();
 	}
@@ -48,6 +51,12 @@ public class SecurityConfig {
 	@Bean
 	PasswordEncoder passwordEncoder() {
 		return new BCryptPasswordEncoder(BCRYPT_STRENGTH);
+	}
+
+	@Bean
+	ApiRateLimitFilter apiRateLimitFilter(ApiRateLimiter apiRateLimiter,
+			com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
+		return new ApiRateLimitFilter(apiRateLimiter, objectMapper);
 	}
 
 }
