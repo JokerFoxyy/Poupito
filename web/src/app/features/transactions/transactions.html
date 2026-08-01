@@ -76,8 +76,8 @@
       </tr>
       @for (transaction of transactions(); track transaction.id) {
         <tr>
-          <td>{{ transaction.date | date: 'dd/MM' }}</td>
-          <td>
+          <td data-label="Data">{{ transaction.date | date: 'dd/MM' }}</td>
+          <td data-label="Descrição">
             {{ transaction.description }}
             @if (transaction.installmentCount) {
               <span class="tag-chip installment-chip">{{ transaction.installmentNumber }}/{{ transaction.installmentCount }}</span>
@@ -90,20 +90,20 @@
               </div>
             }
           </td>
-          <td>
+          <td data-label="Conta/Cartão">
             {{ transaction.cardName ?? transaction.accountName }}
             @if (transaction.invoiceMonth) {
               <span class="invoice-hint">fatura {{ transaction.invoiceMonth | date: 'MMM/yy' }}</span>
             }
           </td>
-          <td>
+          <td data-label="Método">
             <span class="method-badge" [class.method-credito]="transaction.method === 'CREDITO'"
                   [class.method-debito]="transaction.method === 'DEBITO'"
                   [class.method-dinheiro]="transaction.method === 'DINHEIRO'">
               {{ methodLabels[transaction.method] }}
             </span>
           </td>
-          <td>
+          <td data-label="Categoria">
             @if (transaction.categoryName) {
               <span class="tag" [style.background]="(transaction.categoryColor ?? '#4f8ef7') + '26'"
                     [style.color]="transaction.categoryColor ?? '#4f8ef7'">
@@ -111,7 +111,7 @@
               </span>
             }
           </td>
-          <td class="amount-col" [class.pos]="transaction.type === 'INCOME'">
+          <td class="amount-col" data-label="Valor" [class.pos]="transaction.type === 'INCOME'">
             {{ transaction.type === 'INCOME' ? '+' : '' }}{{ transaction.amount | currency: 'BRL' }}
           </td>
           <td class="row-actions">

@@ -122,7 +122,7 @@
       </tr>
       @for (recurring of recurrings(); track recurring.id) {
         <tr [class.inactive]="!recurring.active">
-          <td>
+          <td data-label="Descrição">
             <span class="tag" [style.background]="(recurring.categoryColor ?? '#4f8ef7') + '26'"
                   [style.color]="recurring.categoryColor ?? '#4f8ef7'">
               {{ recurring.categoryIcon }} {{ recurring.categoryName }}
@@ -130,7 +130,7 @@
             {{ recurring.description }}
             @if (!recurring.active) { <span class="badge">inativo</span> }
           </td>
-          <td>
+          <td data-label="Pagar com">
             {{ recurring.cardName ?? recurring.accountName }}
             <span class="method-badge" [class.method-credito]="recurring.method === 'CREDITO'"
                   [class.method-debito]="recurring.method === 'DEBITO'"
@@ -138,11 +138,11 @@
               {{ methodLabels[recurring.method] }}
             </span>
           </td>
-          <td>dia {{ recurring.dayOfMonth }}</td>
-          <td class="amount-col" [class.pos]="recurring.type === 'INCOME'">
+          <td data-label="Dia">dia {{ recurring.dayOfMonth }}</td>
+          <td class="amount-col" data-label="Valor" [class.pos]="recurring.type === 'INCOME'">
             {{ recurring.type === 'INCOME' ? '+' : '' }}{{ recurring.amount | currency: 'BRL' }}
           </td>
-          <td>
+          <td data-label="Pago no mês">
             @if (occurrenceFor(recurring.id); as occurrence) {
               @if (!occurrence.materialized) {
                 <span class="muted">não gerado</span>
