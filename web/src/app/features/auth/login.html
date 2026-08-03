@@ -1,8 +1,8 @@
-<div class="login-page">
+<div class="login-page" [class.register-mode]="mode() === 'register'">
   <div class="login-card panel">
-    <div class="logo">Poup<span>ito</span></div>
+    <a routerLink="/" class="logo">Poup<span>ito</span></a>
     <p class="subtitle">
-      {{ mode() === 'login' ? 'Entre para gerenciar suas finanças' : 'Crie sua conta' }}
+      {{ mode() === 'login' ? 'Entre para gerenciar suas finanças' : 'Vamos criar sua conta grátis' }}
     </p>
 
     @if (errorMessage(); as message) {

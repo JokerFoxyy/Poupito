@@ -15,7 +15,7 @@
       organizar sua vida financeira.
     </p>
     <div class="cta-row">
-      <a routerLink="/login" class="btn btn-lg">Criar conta grátis</a>
+      <a routerLink="/login" [queryParams]="{ mode: 'register' }" class="btn btn-lg">Criar conta grátis</a>
       <a routerLink="/faq" class="btn-ghost btn-lg">Como funciona?</a>
     </div>
   </section>
