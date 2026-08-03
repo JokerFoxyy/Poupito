@@ -19,8 +19,8 @@
 
     <div class="faq-cta">
       <p>Ainda com dúvida?</p>
-      <a routerLink="/login" class="btn">Criar conta grátis</a>
-      <a routerLink="/" class="link">Voltar para o início</a>
+      <a routerLink="/login" [queryParams]="{ mode: 'register' }" class="btn">Criar conta grátis</a>
+      <a routerLink="/" class="btn-ghost">Voltar para o início</a>
     </div>
   </main>
 </div>

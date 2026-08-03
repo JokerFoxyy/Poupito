@@ -3,8 +3,12 @@
 > **Fonte:** `DinDin/spec-app-financeiro.md` + `DinDin/prototipo-dashboard.html` (pasta local fora do repo git, nome não relacionado à marca)
 > **Criado em:** 2026-07-07
 > **Decisão do usuário:** Frontend em **Angular** (a spec original sugeria React) e APIs em **Java**.
-> Este arquivo é o documento-mestre. Cada sessão ganhará seu próprio SDD detalhado em
-> `docs/session-NN-nome/SDD.md` no momento em que for iniciada (mesmo padrão do ContratoIA).
+> Este arquivo é o documento-mestre — mas só do que está **planejado ou em andamento**.
+> Sessões já concluídas viraram uma linha de uma frase aqui, com o texto completo
+> (motivação, decisões, testes) preservado em `docs/PLANO-HISTORICO.md` (2026-08-02,
+> split feito pra manter este arquivo enxuto — ele é relido inteiro toda vez que o
+> roadmap é discutido). Cada sessão também tem seu próprio `docs/session-NN-nome/SDD.md`
+> com o detalhe técnico de implementação, escrito no momento em que a sessão é iniciada.
 
 ---
 
@@ -15,17 +19,17 @@
 | Backend | Java 21 + Spring Boot 3.5.x | Virtual threads; pacotes por feature (`transaction/`, `budget/`, `investment/`, `goal/`...) |
 | API | REST + OpenAPI (springdoc) | Contrato documentado para futuro app mobile |
 | Banco | PostgreSQL 16 (Docker Compose) | Dinheiro em `NUMERIC(14,2)` / `BigDecimal`; datas em `LocalDate` |
-| Migrations | Flyway | Desde a V1 |
-| Auth | Spring Security + JWT próprio | Mais leve que Keycloak para 1 usuário; multiusuário desde o início |
+| Migrations | Flyway | Desde a V1, hoje na V15 |
+| Auth | Spring Security + JWT próprio | Cookies httpOnly (ver `CLAUDE.md`) |
 | Frontend | **Angular 20 + TypeScript** (standalone components, signals) | Adaptação da spec (React → Angular) |
-| UI | Tailwind CSS + componentes próprios | Reproduzir o tema dark do protótipo (`prototipo-dashboard.html`) |
-| Gráficos | Chart.js via ng2-charts | O protótipo já usa Chart.js (donut, barras, linha) |
+| UI | Tailwind CSS + componentes próprios | Tema Poupito (claro padrão + dark), sessão #23 |
+| Gráficos | Chart.js puro (sem ng2-charts) | Ver seção Dashboard/Investimentos no `CLAUDE.md` |
 | Import xlsx | Apache POI (backend) | Parser da Planilha_Gastos_2026 |
-| Testes | JUnit 5 + Testcontainers (Postgres real); Karma/Jasmine no front | Meta de cobertura como no ContratoIA |
-| CI | GitHub Actions (build + test + CodeQL/Trivy) | Mesmo padrão do ContratoIA |
-| Deploy | Docker Compose em AWS Lightsail US$5 (ou EC2 t4g.micro) + Caddy | Conforme seção 6 da spec |
+| Testes | JUnit 5 + Testcontainers (Postgres real); Karma/Jasmine no front | JaCoCo ≥90% API, Karma ≥90/80/90/90 web |
+| CI | GitHub Actions (build + test + CodeQL/Trivy) | |
+| Deploy | Docker Compose em AWS Lightsail (produção real em `poupito.com`) + Caddy | |
 
-**Regras de ouro (da spec):** nunca float/double para dinheiro; API separada do front; saldo mensal é **cálculo**, não célula (`saldo(mês) = saldo(mês-1) + entradas − gastos`).
+**Regras de ouro:** nunca float/double para dinheiro; API separada do front; saldo mensal é **cálculo**, não célula (`saldo(mês) = saldo(mês-1) + entradas − gastos`).
 
 ## 2. Estrutura do monorepo
 
@@ -33,395 +37,163 @@
 Poupito/                  (repo git)
 ├── api/                    Spring Boot (Java 21, Maven)
 │   └── src/main/java/com/poupito/api/
-│       ├── auth/  account/  category/  transaction/  invoice/
+│       ├── auth/  account/  category/  card/  transaction/  invoice/
 │       ├── recurring/  budget/  goal/  investment/  dashboard/  importer/
 │       └── common/         (config, security, erros, money)
 ├── web/                    Angular 20
 │   └── src/app/
-│       ├── core/           (auth, interceptors, api client, layout shell)
-│       ├── features/       (dashboard, transactions, investments, goals, recurring, settings)
-│       └── shared/         (cards, tabelas, month-picker, barras de progresso)
-├── infra/                  docker-compose.yml (postgres, api, web/caddy), scripts
-└── docs/                   PLANO-SDD.md (este arquivo) + session-NN-*/SDD.md
+│       ├── core/           (auth, state stores, layout shell, theme)
+│       ├── features/       (dashboard, transactions, investments, goals, recurring,
+│       │                    settings, landing, faq, ...)
+│       └── shared/
+├── infra/                  docker-compose.yml/.prod.yml, scripts, Caddyfile
+└── docs/                   PLANO-SDD.md (este arquivo) + PLANO-HISTORICO.md
+                            + session-NN-*/SDD.md
 ```
 
-## 3. Modelo de dados
+## 3. Modelo de dados (migrations Flyway, V1→V15 hoje)
 
-O schema completo está na seção 2 da spec (`spec-app-financeiro.md`) e vira as migrations Flyway:
-
-- **V1:** `users`
-- **V2:** `accounts` (CHECKING | CREDIT_CARD | CASH, closing_day/due_day), `categories` (EXPENSE | INCOME, icon, color)
-- **V3:** `transactions` (EXPENSE | INCOME | INVOICE_ADJUSTMENT, account obrigatória, invoice_id), `card_invoices` (OPEN | CLOSED | PAID, declared_total)
-- **V4:** `refresh_tokens` (sessão #S, segurança — não estava no plano original, entrou na frente por pedido do usuário)
-- **V5:** `recurring_transactions` (fixos com day_of_month, active) — sessão #8
-- **V6:** `budgets` (categoria × mês × valor esperado) — sessão #10
-- **V7:** `goals` + `goal_contributions`
-- **V8:** `investments` (RESERVA | RENDA_FIXA | RENDA_VARIAVEL) + `investment_entries` (APORTE | RESGATE | ATUALIZACAO_SALDO)
-
-Cada migration entra na sessão que implementa a feature correspondente. Numeração vai sendo ajustada conforme a ordem real de merge (não a ordem do roadmap), já que sessões podem ficar com PR aberto aguardando aprovação do usuário antes de outra ser iniciada.
+Histórico completo de cada migration em `docs/PLANO-HISTORICO.md` e nas seções
+correspondentes do `CLAUDE.md` (Domínio, Remodelagem Contas & Cartões, Auth &
+Segurança). Resumo do que cada migration adicionou está preservado lá — este
+arquivo foca no que ainda está por vir.
 
 ## 4. Regras de negócio críticas
 
 1. **Vínculo de fatura:** lançamento em cartão de crédito é atribuído à `card_invoice` do período conforme `date` × `closing_day` do cartão.
-2. **Fechamento de fatura:** usuário informa `declared_total`; se difere do somatório dos lançamentos, o app cria `INVOICE_ADJUSTMENT` com a diferença. Ao detalhar gastos esquecidos depois, o ajuste é reduzido automaticamente.
-3. **Materialização de fixos:** job `@Scheduled` mensal cria transactions a partir de `recurring_transactions`, com flag "pago?".
-4. **Rentabilidade (fase 2):** TWR simplificado por período: `(saldo_atual − saldo_anterior − aportes) / saldo_anterior`. Comparação com CDI via API SGS do Bacen (série 12, sem chave).
+2. **Fechamento de fatura:** usuário informa `declared_total`; se difere do somatório dos lançamentos, o app cria `INVOICE_ADJUSTMENT` com a diferença.
+3. **Materialização de fixos:** job `@Scheduled` mensal cria transactions a partir de `recurring_transactions`.
+4. **Rentabilidade:** TWR simplificado por período. Comparação com CDI via API SGS do Bacen.
 5. **Metas:** aporte mensal necessário = `(target_amount − acumulado) / meses_restantes`.
 
-## 5. Sessões planejadas
+Detalhe completo de cada regra (fatura, método de pagamento derivado, XOR conta/cartão etc.) está em `CLAUDE.md`, que é a fonte de verdade viva do domínio.
 
-### Fase 0 — Fundação
+## 5. Sessões concluídas (resumo — texto completo em `docs/PLANO-HISTORICO.md`)
 
-**#1 — Estrutura Inicial + Backend Base** ✅ CONCLUÍDA (2026-07-07 — SDD: `docs/session-01-estrutura-inicial/SDD.md`)
-Tasks: (1) monorepo `api/`+`web/`+`infra/`+`docs/`; (2) Docker Compose com Postgres 16; (3) Spring Boot 3.5 + Flyway V1 (`users`) + springdoc + healthcheck; (4) verificação (`docker compose up`, `/actuator/health`, Swagger UI).
-Pré-req: nenhum.
+**Fase 0 — Fundação:** #1 Estrutura Inicial ✅ · #2 Auth JWT ✅ · #3 Setup Frontend Angular ✅ · #4 CI/CD ✅
 
-**#2 — Auth JWT** ✅ CONCLUÍDA (2026-07-08 — SDD: `docs/session-02-auth-jwt/SDD.md`; cobertura 97,3%, JaCoCo 90% enforçado desde aqui)
-Tasks: (1) register/login com password hash (BCrypt) e emissão de JWT; (2) Spring Security filter chain + contexto do usuário; (3) testes (Testcontainers); (4) verificação end-to-end via curl.
-Pré-req: #1.
+**Fase 1 — MVP:** #5 Contas & Categorias ✅ · #6 Transações backend ✅ · #7 Transações frontend ✅ · #S Segurança STRIDE+LGPD ✅ · #8 Fixos Recorrentes ✅ · #9 Fechamento de Fatura ✅ · #10 Orçamentos ✅ · #11 Dashboard ✅ · #12 Import da Planilha ✅ (Fase 1/MVP completa)
 
-**#3 — Setup Frontend Angular** ✅ CONCLUÍDA (2026-07-09 — SDD: `docs/session-03-setup-frontend/SDD.md`; cobertura 100%/90%/100%/100%)
-Tasks: (1) Angular 20 + Tailwind + tema dark do protótipo (variáveis CSS `--bg`, `--card`, `--accent`...); (2) layout shell — sidebar (Dashboard, Transações, Investimentos, Metas, Fixos, Configurações), topbar com month-picker; (3) telas login/registro + interceptor JWT + guards; (4) verificação (login funcional contra a API).
-Pré-req: #2.
+**Fase 2 — Investimentos:** #13 Investimentos backend ✅ · #14 Integração CDI ✅ · #15 Investimentos frontend ✅ · #16 Metas Financeiras ✅ (Fase 2 completa)
 
-**#4 — CI/CD** ✅ CONCLUÍDA (2026-07-09 — SDD: `docs/session-04-cicd/SDD.md`; 5 workflows verdes no PR #4; pendência manual: branch protection em main/develop). **Fase 0 completa.**
-Tasks: (1) GitHub Actions backend (build, test); (2) frontend (build, test); (3) CodeQL + Trivy + Dependency Review; (4) verificação (pipelines verdes).
-Pré-req: #1–#3 (pode rodar em paralelo com #5+).
+**Fase 3 — Qualidade de vida:** #17 Alertas + Busca + Tags ✅ · #18 Parcelamentos ✅ · #19 Export CSV/xlsx ✅ · #20 PWA ✅ · #21 Deploy AWS ✅ (produção real rodando em `poupito.com`)
 
-### Fase 1 — MVP (substitui a planilha)
+**Fase 4 — Hardening & Open Finance (concluídas):** #23 Identidade visual ✅ · #24 Observabilidade + Hardening ✅ · #25 Remodelagem Contas & Cartões ✅ · #26 Bugfix estado de contas dessincronizado ✅ · #29 Recuperação de senha + endurecimento ✅ · #32 Fixos no cartão de crédito ✅ · #33 Refino visual (tokens/mobile/botões/fonte Manrope) ✅ · #34 Bugfix nome único conta/cartão ✅ · #40 Landing pública + FAQ ✅ (inclui complemento 2026-08-02: botão de cadastro, diferenciação visual login/cadastro, ajustes WebView mobile)
 
-**#5 — Contas & Categorias** ✅ CONCLUÍDA (2026-07-09 — SDD: `docs/session-05-contas-categorias/SDD.md`)
-Tasks: (1) migration V2 + CRUD `accounts` (tipos, closing/due day); (2) CRUD `categories` (icon, cor, kind); (3) tela Configurações no Angular; (4) verificação.
-Pré-req: #3.
+## 6. Sessões planejadas / em andamento
 
-**#6 — Transações (backend)** ✅ CONCLUÍDA (2026-07-09 — SDD: `docs/session-06-transacoes-backend/SDD.md`)
-Tasks: (1) migration V3 + CRUD com validações (conta obrigatória, BigDecimal); (2) regra de vínculo à fatura pelo closing_day; (3) filtros por mês/conta/categoria + paginação; (4) testes + verificação.
-Pré-req: #5.
+> **Ordem de execução atual (atualizada 2026-08-02): #42 → #27 → #30 → #39 → (#28/#37/#22 quando o usuário quiser).** Sessões que ainda precisam de mais conversa (#31/#35/#36/#38/#41/#43/#44) entram na fila quando refinadas com o usuário. Histórico completo de como a ordem foi mudando ao longo do projeto está em `docs/PLANO-HISTORICO.md`.
 
-**#7 — Transações (frontend)** ✅ CONCLUÍDA (2026-07-09 — SDD: `docs/session-07-transacoes-frontend/SDD.md`)
-Tasks: (1) tabela mensal com tags coloridas de categoria (como no protótipo); (2) modal de lançamento rápido (data = hoje, última conta usada); (3) edição/exclusão + filtros; (4) verificação.
-Pré-req: #6.
+**#42 — Correção de bugs reportados por usuários** 📋 PLANEJADA — **próxima sessão a rodar**, pronta pra virar SDD
 
-**#S — Segurança (STRIDE + LGPD)** ✅ CONCLUÍDA (2026-07-11 — inserida a pedido do usuário; SDD: `docs/session-S-seguranca/SDD.md`; docs: `docs/security/`). Migration **V4** (`refresh_tokens`). Auth migrada para cookies httpOnly + refresh rotacionado/revogável; rate limiting; fail-fast de segredos em prod; security headers; endpoints LGPD de exportação/exclusão. 101 testes API + 77 web.
+Motivação: feedback direto de usuários apontou dois problemas na Configurações/fluxo de conta.
 
-**#8 — Fixos Recorrentes** ✅ CONCLUÍDA (2026-07-12 — SDD: `docs/session-08-fixos-recorrentes/SDD.md`)
-Tasks: (1) migration **V5** (V4 usada na sessão #S) + CRUD; (2) job mensal de materialização + flag "pago?"; (3) tela Fixos com checkbox; (4) testes do job + verificação.
-Pré-req: #6.
+1. **Apagar cartões e fixos → vira arquivar** (decisão do usuário 2026-08-02, puxa pra frente o núcleo da #27 pra Card e RecurringTransaction): hoje excluir cartão/fixo com transação, fatura ou ocorrência vinculada retorna **409** (FK constraint, comportamento documentado desde a #25/#32). Em vez de só melhorar a mensagem de erro, a solução definitiva é **arquivar**: cartão/fixo some da tela principal e de qualquer seletor de novo lançamento ("Pagar com" em Transações/Fixos, mapeamento do Importer), mas as transações/ocorrências/faturas **já existentes continuam 100% visíveis no histórico** (Transações, Faturas, exports) — só não dá mais pra criar lançamento novo nele nem vê-lo fora do histórico.
+   - **Modelagem**: novo campo `archived` (boolean, default `false`) em `Card` e `RecurringTransaction` — **distinto** do `active` que `RecurringTransaction` já tem hoje (esse `active` só pausa/retoma a materialização mensal do job, sessão #8/#32; `archived` é sobre visibilidade/seleção, conceito novo). Migration aditiva, sem backfill.
+   - **Backend**: endpoint de arquivar/desarquivar em `/v1/cards/{id}` e `/v1/recurring/{id}`; `GET` de listagem por padrão retorna só não-arquivados; histórico (`GET /v1/transactions`, `/v1/invoices`, `/v1/recurring/{id}/occurrences`) **não filtra por archived**.
+   - **`DELETE` de verdade**: mantém o comportamento atual (409 se tiver vínculo) — arquivar é a ação oferecida no lugar. Exclusão em cascata explícita fica pra #27, que também cobre o caso de Conta.
+   - **Frontend**: `CardStore`/`RecurringService` filtram arquivados dos seletores "Pagar com"; painel de Cartões e tela de Fixos ganham ação "Arquivar"; badge "Arquivado" na listagem de Transações/Faturas.
+2. **Vazamento de dados entre contas ao trocar de usuário no mesmo navegador** (relatado: desloga e loga com outra conta, "Configurações" mostra dados da conta anterior) — **bug de segurança/privacidade, prioridade alta**. Causa-raiz identificada por inspeção de código: `AccountStore`/`CardStore`/`CategoryStore` (`web/src/app/core/state/*.store.ts`, sessão #26) são singletons `providedIn: 'root'` com uma flag `loaded` que **nunca é resetada**; `Shell.logout()` faz só `router.navigate(['/login'])` — **sem reload de página** — então nenhum singleton é recriado, e os stores continuam com os dados em memória do usuário anterior. Fix: método `reset()` em cada store, chamado a partir de `AuthService.clearSession()` (cobre logout explícito e falha de refresh). Task extra: auditar se há outro estado cacheado do mesmo jeito (ex. badge de alertas de orçamento no `Shell`).
 
-**#9 — Fechamento de Fatura** ✅ CONCLUÍDA (2026-07-13 — SDD: `docs/session-09-fechamento-fatura/SDD.md`; sem migration)
-Tasks: (1) ciclo de vida da fatura (OPEN → CLOSED → PAID) + total lançado vs. declarado; (2) lançamento automático de ajuste (INVOICE_ADJUSTMENT) e redução ao detalhar; (3) UI de fatura por cartão; (4) testes + verificação.
-Pré-req: #6.
+Tasks: (1) migration `archived` em `Card`/`RecurringTransaction` + endpoint arquivar/desarquivar + filtro nos GETs; (2) frontend — ação "Arquivar", filtro nos seletores, badge "Arquivado"; (3) `reset()` nos 3 stores + chamada em `AuthService.clearSession()`; (4) auditoria de outros caches órfãos; (5) testes (API ≥90%, web ≥90/80/90/90); (6) verificação e2e (arquivar cartão com fatura vinculada; logout→login trocando de usuário na mesma aba).
 
-**#10 — Orçamentos (orçado vs. realizado)** ✅ CONCLUÍDA (2026-07-13 — SDD: `docs/session-10-orcamentos/SDD.md`)
-Tasks: (1) migration **V6** (V5 reservada pela sessão #8) + CRUD budgets; (2) endpoint orçado × realizado por categoria/mês; (3) tabela com barras de progresso (vermelho ao estourar, como no protótipo); (4) verificação.
-Pré-req: #6. 126 testes API (JaCoCo ≥90%), testes web com cobertura ≥90/80/90/90.
+Pré-req: nenhum (roda já, independe de deploy).
 
-**#11 — Dashboard Mensal + Panorama Anual** ✅ CONCLUÍDA (2026-07-13 — SDD: `docs/session-11-dashboard/SDD.md`)
-Tasks: (1) endpoints agregados (entradas, gastos, saldo do mês, saldo acumulado, gasto por categoria, série anual); (2) cards + donut de categorias + tabela orçado/realizado; (3) gráfico de barras anual (entradas × gastos); (4) verificação visual contra o protótipo. Chart.js puro (sem `ng2-charts`, que exigiria `@angular/cdk`). 168 testes API (JaCoCo ≥90%), 126 testes web (cobertura ≥90/80/90/90).
-Pré-req: #7, #10.
+**#27 — Arquivar contas (soft) + excluir com cascata explícito** 📋 PLANEJADA (refinamento pós-uso, decidido com o usuário 2026-07-23; **escopo reduzido em 2026-08-02** — arquivamento de Cartão e Fixo foi puxado pra frente e absorvido pela **#42**) — roda logo após a #42, na frente da #39
 
-**#12 — Import da Planilha xlsx** ✅ CONCLUÍDA (2026-07-14 — SDD: `docs/session-12-import-planilha/SDD.md`). **Fase 1 (MVP) completa.**
-Tasks: (1) parser Apache POI da Planilha_Gastos_2026 (abas mensais, fixos, entradas); (2) endpoint de upload + mapeamento categorias/contas + idempotência; (3) UI de importação com preview; (4) verificação com a planilha real. Verificado com o arquivo real do usuário: 440 linhas, 439 transações criadas, idempotência confirmada (reimport pula tudo como duplicata). 183 testes API (JaCoCo ≥90%), 134 testes web (cobertura ≥90/80/90/90).
-Pré-req: #11. **Critério de sucesso da Fase 1: abandonar a planilha no mês seguinte.**
+Motivação: apagar conta com transações/faturas vinculadas hoje só bloqueia (409 por FK).
+Decisão (usuário): **arquivar/inativar é a ação principal** (some dos seletores de novo lançamento, mantém histórico visível); **excluir de vez em cascata** vira opção secundária, com confirmação forte mostrando a contagem exata.
+⚠️ **Escopo restante após a #42**: só **Account** — Card e RecurringTransaction já ganham arquivamento na #42. Reaproveitar o mesmo padrão (`archived` boolean, filtro nos seletores, endpoint arquivar/desarquivar) já implementado lá.
+Tasks a refinar: (1) flag `archived` em `Account` (mesmo padrão da #42); (2) ação de arquivar/desarquivar (endpoint + UI); (3) excluir-com-cascata explícito (serviço transacional + confirmação com contagem) — vale para conta, cartão e fixo, já que nenhum dos três ganhou isso na #42; (4) testes (≥90% API, ≥90/80/90/90 web); (5) verificação e2e.
+Pré-req: #25 (modelo conta/cartão) + #42 (padrão de arquivamento já estabelecido).
 
-### Fase 2 — Investimentos
+**#30 — Template de import da planilha (download do modelo compatível)** 📋 PLANEJADA (sessão pequena e separada, decidida com o usuário 2026-07-25) — priorizada 2026-08-02, roda antes da #39
 
-**#13 — Investimentos (backend)** ✅ CONCLUÍDA (2026-07-14 — SDD: `docs/session-13-investimentos-backend/SDD.md`)
-Tasks: (1) migration V7 + CRUD investments/entries (aporte, resgate, atualização de saldo); (2) cálculo de rentabilidade TWR por período e por classe; (3) testes + verificação. 207 testes API (JaCoCo ≥90%).
-Pré-req: #2 (independente do MVP).
+Motivação: o importador (#12) lê a Planilha_Gastos_2026 em **posições fixas de linha/coluna** nas 12 abas mensais. Quem não tiver exatamente esse layout não consegue importar de forma fiel. Falta um **modelo oficial para baixar** no formato exato que o parser espera.
+Decisão (usuário): template **.xlsx para download** que espelha 1:1 o que o import consome, com aba de instruções/legenda. Escopo enxuto: gerar/servir o arquivo + link na tela de Import, **não** mexe na regra de parsing.
+Tasks a refinar: (1) gerar o template com Apache POI (idealmente derivado das mesmas constantes de posição do `SpreadsheetParser`); (2) endpoint `GET /v1/import/template` + botão "Baixar modelo"; (3) testes (o template gerado passa pelo próprio `preview` sem linhas "não mapeadas" — teste de ida e volta) + verificação e2e. Cobertura padrão (API ≥90%, web ≥90/80/90/90).
+Pré-req: #12 (parser) e #25 (mapeamento de cartão no import).
 
-**#14 — Integração CDI (Bacen SGS)** ✅ CONCLUÍDA (2026-07-15 — SDD: `docs/session-14-integracao-cdi/SDD.md`)
-Tasks: (1) client HTTP da série 12 com cache local; (2) endpoint carteira × CDI acumulado; (3) testes com mock + verificação. 216 testes API (JaCoCo ≥90%); verificado com a API real do Bacen.
-Pré-req: #13.
+**#39 — SEO** 📋 PLANEJADA — ⚠️ precisa de organização/pesquisa antes de virar SDD (pedido do usuário 2026-08-01)
 
-**#15 — Investimentos (frontend)** ✅ CONCLUÍDA (2026-07-16 — SDD: `docs/session-15-investimentos-frontend/SDD.md`)
-Tasks: (1) cards por classe (patrimônio total, reserva, RF, RV); (2) gráfico de linha patrimônio × CDI; (3) lançamentos de aporte/resgate/atualização; (4) verificação contra o protótipo. 171 testes web (cobertura ≥90/80/90/90).
-Pré-req: #14.
+Motivação: até a #40 (landing pública), não existia nenhuma página pública indexável. SEO de verdade só faz sentido com a landing/FAQ existindo — o dashboard autenticado nunca deveria ser indexado.
+Pontos a organizar antes do SDD: (1) meta tags por rota pública (`Title`/`Meta` do `@angular/platform-browser`, landing e FAQ); (2) `robots.txt` + `sitemap.xml` em `web/public/` (liberar só rotas públicas, bloquear autenticadas); (3) JSON-LD (`Organization`/`SoftwareApplication`) na landing; (4) Lighthouse/Core Web Vitals na landing; (5) domínio canônico (`www` vs bare `poupito.com`) + `<link rel="canonical">`; (6) Google Search Console (passo manual do usuário).
+Pré-req: **#40** ✅ (já concluída). Ordem: roda depois de #27 e #30.
 
-**#16 — Metas Financeiras** ✅ CONCLUÍDA (2026-07-16 — SDD: `docs/session-16-metas-financeiras/SDD.md`). **Fase 2 (Investimentos) completa.**
-Tasks: (1) migration **V9** (não V6, já usada pela sessão #10) + CRUD goals/contributions + cálculo de aporte necessário; (2) tela Metas com barras de progresso e "R$ X/mês até data"; (3) verificação. 239 testes API (JaCoCo ≥90%), 152 testes web (cobertura ≥90/80/90/90).
-Pré-req: #13.
+**#22 — Conexão bancária via Open Finance** 📋 PLANEJADA — última sessão da fila (decisão do usuário 2026-07-25: rodar todas as outras antes)
 
-### Fase 3 — Qualidade de vida
+Ideia inicial: conectar contas de banco via agregador certificado (Pluggy ou Belvo) para puxar extratos/saldos automaticamente.
+Tasks a refinar: (1) avaliar Pluggy vs. Belvo (custo, cobertura, free tier); (2) fluxo de consentimento OAuth com o banco; (3) endpoint/job de sincronização periódica → mapeamento pra `transactions` (evitar duplicidade); (4) UI de gerenciamento de conexões; (5) verificação e2e (sandbox do agregador).
+Pré-req: Fase 3 completa + #24 (ambos ✅). Trade-off a decidir: custo recorrente por conta conectada escala com base de usuários.
 
-**#17 — Alertas de Orçamento + Busca e Tags** ✅ CONCLUÍDA (2026-07-16 — SDD: `docs/session-17-alertas-busca-tags/SDD.md`). **Primeira sessão da Fase 3.**
-Tasks: (1) alerta ao estourar orçamento (badge/notificação no app); (2) busca full-text e filtros avançados; (3) tags livres em transações; (4) verificação. Migration **V10** (`transaction_tags`). 197 testes web (cobertura ≥90/80/90/90); verificado end-to-end no browser.
-Pré-req: #11.
+**#28 — Saldo por conta (competência + regime de caixa)** 📋 PLANEJADA (decidido com o usuário 2026-07-23)
 
-**#18 — Parcelamentos** ✅ CONCLUÍDA (2026-07-17 — SDD: `docs/session-18-parcelamentos/SDD.md`)
-Tasks: (1) compra em N× gera N transações futuras vinculadas; (2) UI de parcelamento no lançamento; (3) verificação. Migration **V11**. 252 testes API + 206 testes web (cobertura ≥90/80/90/90); verificado end-to-end no browser.
-Pré-req: #9.
-
-**#19 — Export CSV/xlsx** ✅ CONCLUÍDA (2026-07-17 — SDD: `docs/session-19-export-csv-xlsx/SDD.md`)
-Tasks: (1) endpoint de export (POI); (2) botão de export com filtros aplicados; (3) verificação. 259 testes API + 209 testes web (cobertura ≥90/80/90/90); verificado com arquivos reais (CSV e xlsx).
-Pré-req: #7.
-
-**#20 — PWA** ✅ CONCLUÍDA (2026-07-17 — SDD: `docs/session-20-pwa/SDD.md`)
-Tasks: (1) `@angular/pwa` (manifest + service worker); (2) ajustes responsive mobile (sidebar vira drawer off-canvas com botão hambúrguer abaixo de 700px); (3) verificação. 213 testes web (cobertura ≥90/80/90/90); verificado end-to-end com service worker registrado, manifest servido e drawer mobile funcionando (login real + viewport mobile no browser).
-Pré-req: #11.
-
-**#21 — Deploy AWS** ✅ CÓDIGO CONCLUÍDO (2026-07-18 — SDD: `docs/session-21-deploy-aws/SDD.md`) — **provisionamento real pendente do usuário**
-Tasks: (1) `web/Dockerfile` + `Caddyfile` (Caddy serve o estático do Angular e faz proxy `/api/*`; `api/Dockerfile` já existia da sessão #4) + `infra/docker-compose.prod.yml`; (2) **Lightsail US$5/mês** (decisão do usuário — logo, imagens `linux/amd64`, não ARM); (3) `infra/scripts/backup.sh` (pg_dump → S3, lifecycle 30 dias) + `setup-host.sh` (swap 2GB); (4) `.github/workflows/deploy.yml` (SSH manual via `workflow_dispatch`) + job `docker` novo em `ci-web.yml`; (5) smoke test local do compose completo (proxy, fallback SPA, healthcheck) — verificação end-to-end **em produção real** ainda pendente: requer o usuário comprar domínio, criar a instância Lightsail e configurar os secrets do GitHub (passo a passo em `infra/README.md`).
-Pré-req: #4 + MVP estável (recomendado após #12).
-
-### Fase 4 — Hardening & Open Finance
-
-> **Ordem de execução (atualizada 2026-07-31): #26 ✅ → #29 ✅ → #32 ✅ → #24 ✅ → #33 → (#27/#28/#30/#31/#35/#36/#37/#38 quando o usuário quiser) → #22 por último.** A **próxima é a #33 (refino visual)** — decisão do usuário 2026-07-27: usuários já estão sentindo os problemas visuais na prática (coluna de ações desalinhada, tabelas sem tratamento mobile), então ela furou a fila na frente das sessões flexíveis. A **#22 (Open Finance) continua deliberadamente jogada pro fim** (decisão do usuário 2026-07-25): rodar todas as outras antes. As #27/#28/#30/#31/#35/#36/#37/#38 encaixam quando o usuário quiser, mas **todas antes da #22** — #31/#35/#36 precisam de mais conversa antes de rodar, e #38 precisa de estudo de viabilidade (ver ⚠️ nas respectivas entradas abaixo).
-
-**#24 — Observabilidade + Hardening contra exaustão** ✅ CONCLUÍDA (2026-07-27 — SDD: `docs/session-24-observabilidade-hardening/SDD.md`)
-Motivação: só `actuator/health`/`info` estavam expostos e só login/registro tinham rate limiting (`LoginRateLimiter`, por IP+email) — o resto da API (transações, export, import) não tinha limite nenhum, e a instância Lightsail de 1GB é um alvo fácil de exaustão assim que ficar pública. Motivador direto: o job de sincronização periódica do Open Finance (#22) é exatamente o tipo de coisa que falha silenciosamente sem observabilidade.
-Entregue em **código** (ver `CLAUDE.md`, seção "Observabilidade + Hardening"): `ApiRateLimiter`/`ApiRateLimitFilter` — rate limit geral por IP, regra `default` (120/min, toda a API, roda antes até do `JwtAuthFilter` pra cobrir os endpoints públicos) e `expensive` (10/min, export/import); logging estruturado JSON em produção (`logback-spring.xml` + `logstash-logback-encoder`), logger `com.poupito.api.security` com MDC (`event`/`ip`/`path`) usado por `LoginAttemptLimiter`/`LoginRateLimiter`/`ApiRateLimitFilter`; tuning de `HikariCP`/Tomcat em `application-prod.yml` pra instância de 1GB; driver `awslogs` já configurado no `docker-compose.prod.yml` pro serviço `api`. Bug encontrado e corrigido durante a implementação: o filtro usava `getRequestURI()` (inclui o context-path `/api`, nunca batia com os padrões configurados) — trocado por `getServletPath()`.
-Ficou como **runbook manual** em `D:\Docs\Poupito\runbook-sessao-24-observabilidade-hardening.md` (requer conta/acesso que só o usuário tem, mesmo padrão da #21): export de logs pro CloudWatch + alarme de lockout (em andamento — policy de CloudWatch Logs já adicionada ao IAM user `poupito-backups`, reaproveitando o mesmo user do backup S3 da #21), Cloudflare gratuito (WAF/DDoS na borda, SSL mode Full strict) e fail2ban no SSH (sem restringir por IP — os runners do GitHub Actions usam IPs dinâmicos). Correção registrada no runbook: o Lightsail **não suporta anexar IAM role a uma instância** (diferente da EC2) — o caminho real é IAM user + access key configurada via `aws configure` no host (não no `.env`, já que o driver `awslogs` do Docker roda no nível do daemon, não do container).
-Testes: `ApiRateLimiterTest` (unit) + `ApiRateLimitFilterIntegrationTest` (429 com `Retry-After` no endpoint geral e no `expensive`, `/actuator/health` nunca limitado). Gotcha de suíte: o rate limit geral roda por trás do mesmo contexto Spring reaproveitado por quase todas as `*FlowIntegrationTest` (mesmo IP `localhost`) — o `maven-surefire-plugin` sobrescreve os limites pra um valor bem alto via `systemPropertyVariables` só durante o build, e o teste dedicado do filtro sobrescreve de novo pra baixo via `@TestPropertySource` (contexto isolado).
-Pré-req: #21 (precisava da instância real em produção pra fazer sentido — a lógica de código não depende disso, mas o runbook manual sim).
-
-**#22 — Conexão bancária via Open Finance** 📋 PLANEJADA — **última sessão da fila** (decisão do usuário 2026-07-25: rodar todas as outras antes; a refinar quando chegar a vez)
-Ideia inicial: conectar contas de banco via agregador certificado em Open Finance (Pluggy ou Belvo) para puxar extratos/saldos automaticamente, reduzindo lançamento manual.
-Tasks a refinar: (1) avaliar Pluggy vs. Belvo (custo por conta conectada, cobertura de bancos, free tier); (2) fluxo de consentimento OAuth do usuário com o banco (conexão, expiração/reautenticação de token); (3) endpoint/job de sincronização periódica de extratos → mapeamento para `transactions` (evitar duplicidade com lançamentos manuais); (4) UI de gerenciamento de conexões bancárias; (5) verificação end-to-end com conta de banco real (sandbox do agregador).
-Pré-req: Fase 3 completa (MVP estável + deploy) **+ #24**, e o usuário optou por deixá-la **por último** (depois de #27/#28/#30/#31). Risco/trade-off a decidir: custo recorrente por conta conectada escala com base de usuários — mais vantajoso enquanto uso é pessoal (poucas contas) do que se o produto virar SaaS multiusuário sem repasse desse custo.
-
-**#23 — Identidade visual (logo + marca + paleta oficial)** ✅ CONCLUÍDA (SDDs: rename `docs/session-23-rebrand-guaranin/SDD.md` (2026-07-19), rename `docs/session-23-rebrand-poupito/SDD.md` (2026-07-22), visual `docs/session-23-identidade-visual/SDD.md` (2026-07-22))
-**Nome:** "DinDin" → "Guaranin" (2026-07-19) → "**Poupito**" (2026-07-22, final — "Guaranin" soava a guaraná/guarani; "Poupito", de "poupar", comunica economizar). Domínio `poupito.com` a registrar pelo usuário.
-**Identidade visual ("Crescimento Seguro"):** logo "P" azul-marinho + broto verde (fornecido pelo usuário); paleta navy `#0F172A`/`#1E293B` + verde esmeralda `#059669`/`#10B981` + neutras branco/cinza-claro; slogan "Descomplique, poupe, Poupito.". Implementado: **tema claro como padrão + toggle dark/light** (`ThemeService`, variáveis CSS `:root`/`[data-theme="dark"]`, script inline anti-flash); sidebar navy como "chrome" da marca nos dois temas; ícones PWA + favicon reais gerados do logo (substituem o placeholder do Angular da sessão #20); gráficos Chart.js e tints semânticos passam a respeitar o tema. 217 testes web; verificado nos dois temas no browser.
-**Melhorias futuras (não bloqueiam):** self-hostar fonte Inter; recolorir gráficos ao alternar tema sem navegar; favicon multi-resolução.
-Pré-req: nenhuma.
-
-**#25 — Remodelagem Contas & Cartões (método de pagamento)** ✅ CONCLUÍDA (2026-07-22 — SDD: `docs/session-25-remodelagem-contas-cartoes/SDD.md`) — **prioridade sobre #24/#22 (decisão do usuário: o rearranjo de domínio vem antes do resto)**
-Motivação: cartão de crédito como tipo de conta mistura "onde o dinheiro vive" com "instrumento de pagamento"; e o importador pulava a regra de fatura (bug: aba Faturas zerada após import) — corrigido dentro desta sessão.
-Decisões (usuário): entidade **Card** separada sempre vinculada a uma conta; compra no crédito só debita a conta **quando a fatura é paga** (`INVOICE_PAYMENT`, excluído das agregações de gasto pra não contar duas vezes); **dados transacionais recomeçados** na migration V12 (app pré-produção). Método de pagamento (crédito/débito/dinheiro) é **derivado**, não digitado; parcelamento passa a exigir cartão; fixos seguem em conta (cartão em fixos = melhoria futura).
-Tasks: (1) migration V12 + CRUD `/v1/cards`; (2) transações xor conta/cartão + fatura por cartão + endpoint pagar fatura; (3) importer roteando cartão→fatura; (4) testes backend; (5) frontend (painel Cartões, "Pagar com", badge de método, pagar fatura, import); (6) testes web + verificação e2e; (7) docs + PR.
-Pré-req: nenhum técnico (roda já).
-
-**#26 — Bugfix: estado de contas dessincronizado na UI (pós-#25)** ✅ CONCLUÍDA (2026-07-23 — SDD: `docs/session-26-fix-estado-contas/SDD.md`; bugs reportados pelo usuário 2026-07-22)
-Solução: stores reativos com signals (`core/state/{account,card,category}.store.ts`) como fonte única — toda mutação dá `refresh()` e propaga pros consumidores. Mensagem específica no 404 (conta/cartão apagado noutra tela) + refresh; nota de UX no painel de Cartões ("débito não é cartão"). 255 testes web (97/85/93/96); verificado e2e no browser (apagar conta some de todos os selects sem reload, nas duas direções e cross-rota).
-
-**Sintomas relatados:**
-1. Ao criar cartão vinculado a uma conta (ex.: cartão "Nubank" → conta "Débito"), a UI retorna **"Erro ao salvar o cartão"**.
-2. Os selects de conta **listam contas que o usuário já apagou** (ex.: "Débito" aparece no dropdown do form de cartão mesmo tendo sido excluída).
-
-**Causa-raiz (confirmada por análise de código + inspeção do banco):** os dois sintomas têm **uma única origem**. Cada componente (`accounts-panel`, `cards-panel`, `transactions`, `invoices`, `importer`, `recurring`, `dashboard`, `investments`, `budgets`, `goals`) carrega a lista de contas **independentemente em `ngOnInit`** e nunca ressincroniza. Quando o usuário apaga uma conta no `accounts-panel` (que se recarrega sozinho), os dropdowns dos **outros** componentes continuam com a lista antiga em cache — mostrando contas que já não existem (sintoma 2). Ao escolher uma dessas contas fantasma e salvar o cartão, o backend responde **404 "Conta não encontrada"** (`CardService.ownedAccount`), que o front exibe como o genérico "Erro ao salvar o cartão" (sintoma 1). Confirmado no banco: a conta "Débito" realmente não existe mais (só restaram Itau e Nubank para o usuário) — o delete funcionou no backend; foi a UI que ficou dessincronizada.
-
-**Tasks a refinar:**
-1. **Estado de contas compartilhado e reativo:** criar um store baseado em signals (ex.: `core/state/AccountStore`) que todos os consumidores leem, atualizado após qualquer mutação (create/update/delete). Alternativa mais barata: re-buscar contas ao abrir cada form/modal (`openCreate`/`openEdit`) nos componentes afetados. Avaliar generalizar para **cartões e categorias** (mesmo padrão de bug latente).
-2. **Mensagem de erro específica no 404:** quando a conta/cartão referenciado sumiu, dizer "A conta selecionada não existe mais — atualize a lista" e recarregar o select, em vez do genérico "Erro ao salvar".
-3. **UX "débito não é cartão":** o usuário tentou registrar "Nubank débito" no painel de **Cartões** (que exige dia de fechamento/vencimento). No modelo da #25, débito não é entidade — basta a **conta** (`CHECKING`/`CASH`) e escolher no "Pagar com" (método deriva pra `DEBITO`/`DINHEIRO`). Melhorar o texto/orientação: deixar claro que **Cartões = só crédito**; débito e dinheiro = contas.
-4. **Confirmar a mensagem do delete bloqueado por FK:** apagar conta com cartão vinculado → 409 (`cards.account_id NOT NULL`); hoje o front mostra "Erro ao excluir a conta". Garantir que a mensagem explique o motivo (cartão/transação vinculada).
-5. Regressão de testes web (≥90/80/90/90) + verificação e2e: apagar conta e confirmar que some de **todos** os selects sem precisar recarregar a página.
-
-Pré-req: nenhum (roda já; independe do deploy).
-
-**#27 — Arquivar contas & cartões (soft) + excluir com cascata explícito** 📋 PLANEJADA (refinamento pós-uso, decidido com o usuário 2026-07-23)
-Motivação: apagar cartão/conta com transações/faturas vinculadas hoje só bloqueia (409 por FK). Num app financeiro o histórico é o produto — cancelar um cartão não pode significar perder o histórico de gastos dele.
-Decisão (usuário): **arquivar/inativar é a ação principal** (some dos seletores de novo lançamento, mas mantém transações/faturas antigas visíveis no histórico e nos filtros); **excluir de vez em cascata** vira opção secundária, com confirmação forte mostrando a contagem exata (cartão + N transações + M faturas). Vale **igual para contas**.
-Tasks a refinar: (1) flag `active` em `Card` e `Account` (migration) + filtrar seletores de novo lançamento para só ativos (listagens/histórico/filtros mostram todos); (2) ação de arquivar/desarquivar (endpoint + UI); (3) excluir-com-cascata explícito (serviço transacional no backend + confirmação no front com a contagem); (4) testes (≥90% API, ≥90/80/90/90 web); (5) verificação e2e.
-Pré-req: #25 (modelo conta/cartão).
-
-**#28 — Saldo por conta (competência + regime de caixa)** 📋 PLANEJADA (refinamento pós-uso, decidido com o usuário 2026-07-23)
-Motivação: hoje só existe um saldo total agregado, em regime de **competência** (a compra no crédito já vira gasto na data da compra; `INVOICE_PAYMENT` não conta de novo). Falta ver o saldo **por conta** e, principalmente, o **dinheiro real disponível** considerando quando as faturas são efetivamente pagas.
-Decisão (usuário): **manter o saldo por competência como está** (padrão) e **adicionar** uma visão de **regime de caixa por conta** como recurso extra — o "dinheiro real" da conta agora e depois de pagar a fatura. No caixa: entradas e gastos em conta (débito/dinheiro) entram na data; a compra no crédito **não** baixa o caixa da conta até a fatura ser paga (aí o `INVOICE_PAYMENT` debita). Competência = "quanto gastei"; caixa = "quanto tenho de verdade na conta".
-Tasks a refinar: (1) cálculo de saldo de caixa por conta (entradas + gastos débito/dinheiro + `INVOICE_PAYMENT`, na data de cada lançamento); (2) endpoint de saldo por conta (as duas visões); (3) UI — saldo por conta (Configurações e/ou Dashboard) + a visão de caixa "agora vs. depois de pagar a fatura em aberto"; (4) testes; (5) verificação e2e.
-Pré-req: #25; roda melhor **depois da #27** (pra o saldo não somar contas/cartões arquivados de forma indevida — a confirmar no SDD).
-
-**#29 — Senhas: recuperação por email + endurecimento (regras fortes · mostrar senha · lockout)** ✅ CONCLUÍDA (2026-07-25 — SDD: `docs/session-29-recuperacao-senha/SDD.md`)
-Entregue: migration **V13** (`password_reset_tokens`, token opaco 256 bits guardado como hash SHA-256, single-use, expiry PT30M); `POST /auth/forgot-password` (**sempre 204**, anti-enumeração) e `POST /auth/reset-password` (valida/consome token, aplica senha forte, **revoga todos os refresh tokens**). Validador `@StrongPassword` compartilhado (≥12 chars maiúscula+minúscula+número+símbolo) em registro e reset — **login segue só `@NotBlank`** (senhas antigas continuam logando; sem migração de senha). Envio de email **pluggável** (`EmailSender`: `LoggingEmailSender` default loga o link em dev; `SmtpEmailSender`/AWS SES quando `app.mail.enabled=true`). Lockout **por conta** (`LoginAttemptLimiter`, 5 falhas → 5 min, reseta no sucesso) com `Retry-After` no 429. Front: telas `/esqueci-senha` e `/redefinir-senha`, toggle "mostrar senha" (olho) em login/cadastro/redefinir, **hint de política só em cadastro/reset (removido do login)**, feedback de lockout com minutos restantes. 293 testes API (JaCoCo ≥90%) + 280 testes web (97,2/86,6/93,8/97,1); verificado e2e (fluxo de reset via `EmailSender` de teste; telas no browser). **SES ainda a configurar pelo usuário** (`D:/Docs/Poupito/setup-ses-email.md`) — não bloqueia (email logado em dev).
-Fluxo:
-- `POST /auth/forgot-password {email}` → **sempre 200** (anti-enumeração — não revela se o email existe). Se existir, gera token de reset **opaco (256 bits), guardado como hash SHA-256** numa nova tabela `password_reset_tokens` (single-use, expiry curto ~30–60 min) e envia email com link `https://poupito.com/redefinir-senha?token=...`.
-- `POST /auth/reset-password {token, newPassword}` → valida (não expirado, não usado), aplica a senha (BCrypt, mesma política ≥10 chars com letra+número), marca o token como usado e **revoga todos os refresh tokens** do usuário (força re-login em todo lugar — caso a conta estivesse comprometida).
-- **Rate limiting** no forgot-password (reusar `LoginRateLimiter` por IP+email) contra email-bombing/enumeração.
-
-Endurecimento de senha & login (pedido do usuário 2026-07-24):
-- **Regras de senha mais fortes:** elevar a política atual (hoje ≥10 chars com letra+número) — proposta: **≥12 caracteres com maiúscula + minúscula + número + símbolo**, e opcionalmente bloquear senhas óbvias/comuns; aplicar no registro, na troca e no reset (validador compartilhado). Limites exatos a fechar no SDD.
-- **Mostrar senha:** botão de "olho" (toggle mostrar/ocultar) nos campos de senha (login, registro, redefinir) pra o usuário conferir o que digitou.
-- **Lockout de login:** **5 tentativas erradas por conta → bloqueio de 5 minutos.** Ajustar o `LoginRateLimiter` (hoje IP+email) pra contar falhas **por conta** e, após 5, responder 429 até a janela de 5 min expirar; no front, mostrar o aviso com o tempo restante.
-- **Dica de política de senha só onde se DEFINE senha:** a mensagem "A senha deve ter pelo menos X caracteres, incluindo letra e número" aparece só nas telas de **cadastro e redefinição** — **nunca na tela de login** (lá o usuário só digita a senha existente; mostrar a regra é ruído/confuso). Hoje ela vaza no login; remover de lá.
-Tasks a refinar: (1) migration `password_reset_tokens` + entidade/repository; (2) endpoints forgot/reset no `AuthController` + serviço (geração/validação/single-use/expiry/revogação); (3) **envio de email via AWS SES** (encaixa na infra AWS, barato ~US$0,10/1.000 emails) — requer verificar o domínio `poupito.com` (SPF/DKIM/DMARC) e **sair do sandbox do SES** (por padrão só manda pra emails verificados; pedir acesso de produção); template de email branded Poupito; (4) frontend — telas "Esqueci minha senha" (pede email) e "Redefinir senha" (token na URL + nova senha); (5) política de senha reforçada (validador compartilhado em registro/troca/reset); (6) toggle "mostrar senha" nos campos; (7) lockout de 5 tentativas/5 min no `LoginRateLimiter` + feedback no front; (8) remover a dica de política de senha da tela de login (manter só no cadastro/reset); (9) testes (API ≥90%, web ≥90/80/90/90) com envio de email **mockado**; (10) verificação e2e.
-Pré-req: nenhum técnico pro core — dá pra desenvolver com o envio de email **mockado/logado** e plugar o SES depois (o SES é a única parte que depende de infra/DNS). Alinha com o modelo de auth da sessão #S (tokens opacos + hash SHA-256 + rate limiting).
-Setup do SES documentado em `D:/Docs/Poupito/setup-ses-email.md` (fora do repo): verificação de domínio + DKIM na Cloudflare, SPF/DMARC, credenciais SMTP e saída do sandbox.
-
-**#30 — Template de import da planilha (download do modelo compatível)** 📋 PLANEJADA (sessão **pequena e separada**, decidida com o usuário 2026-07-25) — **encaixa cedo** (independe do deploy e de #24/#22)
-Motivação: o importador (#12) lê a Planilha_Gastos_2026 em **posições fixas de linha/coluna** nas 12 abas mensais (seções Fixos/Cartão/Gastos do Mês/Entradas — ver `docs/session-12-import-planilha/SDD.md`). Quem não tiver exatamente esse layout (ou for começar do zero) não consegue importar de forma fiel. Falta um **modelo oficial para baixar** que já venha no formato exato que o parser espera.
-Decisão (usuário): oferecer um **template .xlsx para download** que espelhe 1:1 o que o import consome — mesmas abas, mesmos cabeçalhos, mesmas posições de seção — com uma **aba de instruções/legenda** (o que preencher em cada bloco, uma linha de exemplo realista) para o preenchimento sair alinhado ao parser. Escopo enxuto: é gerar/servir o arquivo + link na tela de Import, **não** mexe na regra de parsing.
-Tasks a refinar: (1) gerar o template com Apache POI (mesmas abas/posições do `SpreadsheetParser`; aba "Como preencher" com legenda + linha de exemplo) — idealmente derivado das **mesmas constantes de posição** do parser pra não divergir com o tempo; (2) endpoint `GET /v1/import/template` (download .xlsx) + botão "Baixar modelo" na tela de Import; (3) testes (o template gerado passa pelo próprio `preview` sem linhas "não mapeadas" inesperadas — teste de ida e volta) + verificação e2e (baixar, preencher o exemplo, reimportar). Meta de cobertura padrão (API ≥90%, web ≥90/80/90/90).
-Pré-req: #12 (parser) e #25 (mapeamento de cartão no import). Pode rodar assim que o usuário quiser — não depende da infra.
-
-**#31 — Empréstimos a pessoas / "a receber" (dívidas de terceiros com você)** 📋 PLANEJADA (formaliza a antiga ideia "contas mãe / a receber", decidida com o usuário 2026-07-25) — sessão **maior** (entidade + fluxo novos)
-> ⚠️ **Refinar mais antes de rodar** (usuário, 2026-07-26): o usuário sinalizou que essa sessão precisa de mais refinamento na hora de rodar — não iniciar direto a partir do rascunho abaixo; retomar a conversa com o usuário para fechar os pontos em aberto (modelagem exata, efeito no saldo, telas) antes de escrever o SDD definitivo.
-Motivação: hoje não dá pra registrar dinheiro que **você emprestou** a alguém. Emprestar sai do seu bolso (afeta seu saldo real), mas não é "gasto" — é um **ativo a receber**; e falta um lugar pra consultar, por pessoa, **quanto te devem** e acompanhar o recebimento (inclusive parcelado) mês a mês.
-Decisões a fechar com o usuário no SDD (proposta inicial):
-- **Entidade `Person`/contato** (nome; escopada por usuário) pra agrupar os empréstimos e ver o total por pessoa.
-- **Empréstimo (`loan`)**: valor, data, pessoa, conta de origem (de onde o dinheiro saiu), e opção de **parcelamento do recebimento** (N parcelas mensais esperadas, como se fosse o inverso de uma compra parcelada — cronograma do que a pessoa deve te pagar).
-- **Efeito no saldo (a decidir — recomendação):** emprestar **reduz o caixa da conta de origem** (dinheiro saiu de verdade) mas **não** conta como *gasto* nas agregações de despesa/orçamento (não é consumo, é um ativo). Ao **receber de volta** (total ou parcela), entra na conta e **abate o saldo devedor** da pessoa — sem virar "receita/entrada" de renda (é devolução de capital, não ganho). Alinha com a lógica de "regime de caixa vs. competência" da #28 e com o tratamento de `INVOICE_PAYMENT` (movimenta caixa sem duplicar como gasto).
-- **Visão de consulta:** tela/painel "A receber" com **total emprestado por pessoa**, quanto já foi devolvido, **saldo em aberto** e o **cronograma mensal** (o que cada pessoa deve te pagar em cada mês) — o "quanto a pessoa te deve todo mês" que o usuário pediu.
-Tasks a refinar: (1) migration (`persons` + `loans` + `loan_repayments`, ou reuso de `transactions` com tipos novos `LOAN_OUT`/`LOAN_REPAYMENT` — decidir modelagem no SDD, pesando integração com o saldo de caixa da #28); (2) CRUD de pessoas e empréstimos + registrar recebimento (parcela/total); (3) cálculo de saldo devedor por pessoa + cronograma mensal + integração com saldo de caixa (afetar conta sem contar como gasto); (4) UI "A receber" (por pessoa, aberto vs. recebido, agenda do mês) + lançamento de empréstimo/recebimento; (5) testes (API ≥90%, web ≥90/80/90/90) + verificação e2e.
-Pré-req: #25 (modelo conta/cartão); casa melhor **depois da #28** (reusa o conceito de saldo de caixa por conta pra o empréstimo debitar a conta sem virar gasto). A confirmar no SDD se antecipa ou espera a #28.
-
-**#32 — Bugfix: gastos fixos no cartão de crédito** ✅ CONCLUÍDA (2026-07-25 — SDD: `docs/session-32-fixos-no-cartao/SDD.md`; bug reportado pelo usuário 2026-07-25)
-Causa-raiz: limitação **estrutural** herdada da migration V5 (anterior à #25) — `recurring_transactions.account_id` era `NOT NULL` e não existia `card_id`; a materialização usava sempre `Transaction.forAccount`. Assinatura cobrada no cartão (Netflix/Spotify) não podia ser cadastrada como fixo. Fecha a pendência que a própria #25 deixou no código ("fixo em cartão = melhoria futura").
-Entregue: migration **V14** (`account_id` nullable + `card_id` + CHECK `chk_recurring_account_xor_card` + índice; aditiva, **sem backfill** — fixos existentes já satisfazem o XOR); `RecurringRequest` com conta **XOR** cartão (400 "Informe conta OU cartão"; entrada em cartão → 400); materialização de fixo no cartão **vinculando à fatura do período** pelo `closing_day` (decisão do usuário) via `Transaction.materializedOnCard`, nascendo `paid=true` (a quitação é o `INVOICE_PAYMENT`, não checkbox por mês); fixo em conta **inalterado** (`paid=false` + checkbox); `method`/`cardName` nas respostas (overload `PaymentMethod.of(cardId, accountType)` reusado). Front: seletor **"Pagar com"** (contas + cartões, cartões escondidos em Entrada), `CardStore`, badge de método, "na fatura" no lugar do checkbox; `.method-badge` promovido pro `styles.css` global. 316 testes API (JaCoCo ≥90%) + 286 testes web (97,2/86,8/93,9/97,2); verificado e2e com API real (V14 aplicada, fixo no cartão → fatura de agosto com R$ 55,90) e no browser.
-Pré-req: #25. Roda independente do resto da fila.
-
-> Ordem atual (2026-07-25): ~~#29 (recuperação de senha)~~ ✅ → ~~#32 (fixos no cartão)~~ ✅ → **#24 (hardening)** → #27/#28/#30/#31 → #22 (Open Finance) por último. A #29 foi concluída (era um gap de acesso real em produção); a **próxima na fila é a #24**. A **#22 fica pro fim a pedido do usuário** (rodar todas as outras antes). As flexíveis: **#30** (template de import — pequena, encaixa cedo), **#27** (arquivar contas/cartões), **#28** (saldo por conta) e **#31** (empréstimos "a receber" — melhor após #28).
-
-**#33 — Refino visual: tipografia, tokens e ícones ("menos cara de IA")** ✅ CONCLUÍDA (2026-08-01 — SDD: `docs/session-33-refino-visual/SDD.md`)
-Motivação: a marca tem personalidade (navy + esmeralda, "Crescimento Seguro", logo próprio — #23), mas a **execução visual** é genérica. Auditoria do CSS atual encontrou:
-- **Escala tipográfica achatada** (o mais grave): os `font-size` são 11, 12, 13, 14, 15 e saltam direto pra 24 — **quase tudo entre 11 e 15px**. Sem hierarquia, toda tela parece wireframe: hoje `R$ 1.945,80` e `dia 5` têm quase o mesmo peso visual. Num app financeiro o número é o conteúdo — precisa de escala (ex.: saldo ~32–36px, label 12px).
-- **Emoji como ícone de UI**: `☰` no menu e `☀️/🌙` no toggle de tema. Emoji de sistema renderiza diferente em cada SO, **não acompanha a cor do tema** e quebra o alinhamento óptico — é o sinal nº 1 de "gerado por IA". (O olho de mostrar senha já foi convertido pra SVG na #29, com resultado bom: serve de padrão.)
-- **`border-radius` sem token**: 4, 6, 8, 9, 10 e 12px espalhados — acúmulo de sessões, não variação intencional. Reduzir a 2–3 raios com propósito.
-- **Sem token de espaçamento**: cada componente escolhe padding/gap, então nada encaixa num ritmo vertical.
-- **Fonte Inter**: a default de praticamente todo app gerado por IA; neutra a ponto de anular a identidade. (Já havia a pendência "self-hostar Inter" desde a #23 — decidir junto se troca.)
-- **Bugfix: coluna de ações desalinhada nas tabelas** (reportado pelo usuário 2026-07-26, print da tela de Transações): `.row-actions` aplica `display: flex` **direto no `<td>`** (ex. `transactions.html`/`.css`) — isso sobrescreve o `display: table-cell` nativo da célula, tirando-a do algoritmo de layout da tabela e quebrando o `vertical-align` que alinha essa célula com as demais da linha (por isso "Editar"/"Excluir" aparecem deslocados verticalmente em relação ao resto). Mesmo padrão (`class="row-actions"` no `<td>`) se repete em **8 telas**: `transactions`, `recurring`, `cards-panel`, `accounts-panel`, `categories-panel`, `investments`, `goals`, `budgets`. Correção: envolver o conteúdo num `<div class="row-actions">` dentro do `<td>` (célula volta a ser `table-cell` puro, o flex fica só na div interna) — aplicar nas 8 telas de uma vez, já que é o mesmo bug copiado.
-- **Bugfix: tabelas sem tratamento responsivo no mobile** (reportado pelo usuário 2026-07-26, prints da tela de Transações no celular — "mais bugs visuais para mobile que alguns usuários reportaram"): as mesmas **8 telas com `.row-actions`** acima não têm **nenhum `@media` query** — diferente de `shell.css`, `dashboard.css`, `investments.css` e `settings.css`, que já tratam layout abaixo de 700–900px. Sem isso, no celular a tabela (7 colunas fixas, sem `table-layout`/largura controlada) fica mais larga que a viewport e o usuário precisa rolar horizontalmente pra alcançar a coluna de ações — que também já está com o bug de alinhamento vertical acima, e fica bem mais visível em telas estreitas porque as linhas quebram em várias linhas de texto (ex. "Milho p / criancas"), aumentando a altura da linha e o desvio percebido. Ideias a decidir com o usuário antes de implementar: (a) container com `overflow-x: auto` + indicação visual de scroll (mínimo, resolve o "sumiço" da coluna sem redesenhar nada); (b) tornar a coluna de ações **sticky** à direita (`position: sticky; right: 0`) pra ficar sempre alcançável mesmo com scroll horizontal; (c) alternativa mais trabalhosa — colapsar a tabela num layout de cards empilhados abaixo de ~600px (like Fixos/Orçamentos já fazem parcialmente com `.panel`/cards em outras seções). Como afeta as mesmas 8 telas do bug de alinhamento, faz sentido resolver os dois juntos nesta sessão.
-- **Botões sem animação e genéricos demais** (pedido do usuário 2026-07-26: "colocar algumas animações e melhorar o style dos botões em geral para dar mais cara de fintech startup do que app de IA"): `.btn`/`.btn-ghost` (`styles.css`) não têm **nenhuma `transition`** — o hover troca de cor instantaneamente (`background: var(--accent-strong)` sem transição), sem feedback de clique (`:active`), sem sombra/elevação, sem estado de loading. Comparando com fintechs de referência (Nubank, Inter, C6): botões costumam ter **micro-interação no hover/click** (leve escala ou sombra, transição de 150–200ms), estado de `:active` visível (afunda/escurece no clique) e às vezes um spinner inline no botão durante o submit (hoje o app não dá feedback nenhum enquanto uma request está em voo — o usuário não sabe se o clique "pegou"). Tasks: (a) `transition` em `.btn`/`.btn-ghost`/`.link` (background, transform, box-shadow — 150–200ms ease); (b) estado `:active` (leve scale-down, ex. `transform: scale(.97)`); (c) sombra sutil no `.btn` primário no hover (eleva o CTA principal); (d) estado de loading nos botões de submit (spinner inline + disabled durante a request — hoje só desabilita via `[disabled]`, sem indicar "processando"); (e) mesma lógica de transição em outros elementos interativos que hoje são estáticos (chips de filtro, tabs, links de ação) pra consistência, não só os botões.
-Entregue (ver `CLAUDE.md`, seção "Refino visual: tokens, mobile e botões"): tokens de tipografia/raio/espaçamento/transição em `styles.css` (`--text-*`, `--radius-*`, `--space-*`, `--transition-fast`), aplicados em todos os componentes globais; emoji → SVG inline no menu e no toggle de tema (`shell.html`); bugfix da coluna de ações (`.row-actions` não usa mais `display: flex` no `<td>`, mais uma cópia duplicada removida de `transactions.css` com o mesmo bug); **mobile: tabelas viram cards empilhados** abaixo de 640px (decisão do usuário 2026-08-01, escolhida sobre scroll horizontal + sticky) via `data-label` nos `<td>` + `@media` global, aplicado nas 8 telas (`goals` não precisou, já era card); botões com `transition`, `:active` scale, sombra no hover, `:focus-visible` desenhado, classe `.btn.loading` pronta (wiring por componente fica pra depois), tudo respeitando `prefers-reduced-motion`.
-Complementos entregues na mesma sessão (pedido do usuário 2026-08-01, depois de ver o resultado dos tokens):
-- **Mais animações**: elevação no hover de `.card`/`.panel`; modais com entrada suave (fade + scale, 4 telas); barra de progresso anima largura; `.nav-item` do menu lateral ganha transição no hover.
-- **Emoji 🎯 das Metas → SVG** (última inconsistência de ícone-emoji fora do shell).
-- **Troca de fonte: Inter → Manrope** — self-hosted (`web/public/fonts/manrope-variable.woff2`, arquivo variável cobre 400-800, subset latin cobre acentuação pt-BR), escolhida pelo usuário entre 3 opções (Manrope/Plus Jakarta Sans/IBM Plex Sans). `.amount-col`/`.card .value` ganham `tabular-nums`.
-Gotcha do build: `url()` relativo em CSS não resolve arquivo de `public/` (esbuild tenta bundlar como módulo) — precisa ser path absoluto (`/fonts/...`).
-Testes: 295/295 Karma, cobertura 97,18/87,27/93,96/97,12 (acima do mínimo 90/80/90/90). Verificação: sem erros de console, tokens resolvendo corretamente via `getComputedStyle`, media query mobile confirmada em 375px — verificação visual completa nas telas autenticadas (Transações, Fixos etc.) não foi possível nesta sessão por falta de credenciais de login no ambiente de browser automatizado; recomenda-se conferir manualmente no navegador antes de considerar 100% fechado.
-Pré-req: nenhum. Nota: o **`/design` do Claude (DesignSync) não faz este trabalho** — ele sincroniza uma biblioteca de componentes com um projeto em `claude.ai/design` (catálogo/versionamento). Faz sentido **depois** desta sessão, para catalogar os componentes já refinados.
-
-**#34 — Bugfix: nome de conta e de cartão único por usuário** ✅ CONCLUÍDA (2026-07-25 — SDD: `docs/session-34-nome-unico-conta-cartao/SDD.md`; reportado pelo usuário 2026-07-25)
-Causa-raiz: `categories` já tinha unicidade (V2), mas **`accounts` e `cards` não tinham nenhuma** — `AccountService.create` só instanciava e salvava. Como conta/cartão são **rótulos de escolha** em toda a UI (seletor "Pagar com" de transações e fixos, filtros, mapeamento do importador que casa **por nome**), dois "Nubank" viram duas opções idênticas no dropdown e o usuário não sabe em qual lança.
-Entregue: migration **V15** com índices únicos em `(user_id, lower(name))` para as duas tabelas — **case-insensitive**, alinhando banco e service (em `categories` a constraint é case-sensitive e o service não, inconsistência não repetida aqui) — e **deduplicação antes de criar o índice** (renomeia repetidos para "Nome (2)" mantendo o mais antigo; sem isso a migration falharia e a API não subiria em quem já tem duplicatas). Services validam no create e no update (409 `DuplicateResourceException`), com a checagem no update rodando só **se o nome mudou**. Front mostra a mensagem real do 409 nos painéis de contas e cartões. Vale para **cartões** também, mesmo o usuário tendo citado só contas: mesmo problema, mesmo tipo de seletor.
-⚠️ **Ordem de merge:** usa **V15** porque a V14 está no PR #62 (#32), ainda aberto — **mergear o #62 antes deste**.
-
-**#35 — Rollback de deploy em produção** 📋 PLANEJADA (pedido do usuário 2026-07-26: "conseguimos configurar um fluxo de rollback do que sobe para prod?")
-
-Motivação: hoje `deploy.yml` (sessão #21) sempre sobe `latest` — não existe forma de voltar pra uma versão anterior sem editar o workflow na mão. Se um deploy quebrar algo em produção, a única saída atual é corrigir pra frente (novo commit + novo deploy), o que é lento numa emergência.
-
-O que já existe a favor (não precisa mudar):
-- `ci-api.yml`/`ci-web.yml` já publicam cada imagem no GHCR com **tag por SHA do commit** (`type=sha,prefix=`), além de `latest` — ou seja, toda versão que já passou por produção já tem uma tag imutável guardada no registry.
-- Migrations Flyway são numeradas e sequenciais (V1...V15), então dá pra saber exatamente qual schema cada commit espera.
-
-O que falta (escopo da sessão):
-1. **Parametrizar `deploy.yml`**: trocar o `workflow_dispatch` pra aceitar um `input` opcional (`image_tag`, default `latest`); `docker-compose.prod.yml` passa a referenciar `${IMAGE_TAG:-latest}` em vez de `latest` fixo nas duas imagens (api e web). Rollback vira "rodar o workflow manual apontando pro SHA anterior", sem precisar editar arquivo nenhum na hora do incidente.
-2. **Coordenar api+web na mesma tag**: como são duas imagens publicadas separadamente, um rollback precisa fixar o **mesmo SHA** nas duas — senão risco de mismatch de contrato entre frontend e backend de commits diferentes. O workflow deve deixar isso explícito (um único input pros dois serviços, não dois inputs separados).
-3. **Documentar (não automatizar) o caso de migration não-reversível**: banco não tem "undo" fácil como container tem. Se a versão que quebrou introduziu uma migration destrutiva (ex.: um `ALTER COLUMN` que descarta dado), reapontar as imagens pro código antigo não desfaz o schema. Pra esses casos o "rollback" real é restaurar o backup (`infra/scripts/backup.sh`, já existe, pg_dump → S3, sessão #21) — documentar esse fluxo no `infra/README.md` como plano B explícito, não tentar automatizar restore de banco.
-4. **Reforçar a disciplina já em prática** (não é código, é processo): migrations continuarem **aditivas/retrocompatíveis** sempre que possível (como a V14 já foi, explicitamente "aditiva/relaxante, sem backfill") — assim o código de uma versão anterior continua funcionando mesmo com o schema mais novo aplicado, o que cobre a maioria dos casos de rollback sem tocar no banco.
-5. Testar o fluxo de verdade: fazer um deploy, forçar rollback pra um SHA anterior via o workflow parametrizado, confirmar que a aplicação volta a funcionar.
-
-⚠️ **Precisa de mais conversa antes de rodar** (usuário, 2026-07-26): esta sessão foi registrada a partir de uma exploração pontual dos workflows atuais, sem SDD formal ainda — antes de iniciar, decidir junto com o usuário: (a) até onde vale automatizar (script auxiliar? alerta no Slack/email quando um deploy for revertido?) vs. manter simples (só o parâmetro no `workflow_dispatch`); (b) se algum runbook adicional é necessário além do `infra/README.md`.
-
-Pré-req: nenhum tecnicamente (roda em cima da infra da #21); recomendado rodar depois da #24 (observabilidade/hardening), já que rollback é mais útil combinado com alertas que avisam que algo quebrou.
-
-**#36 — Repensar a tela de Investimentos (evolução de patrimônio e comparativos de rendimento)** 📋 PLANEJADA (pedido do usuário 2026-07-26)
-
-Motivação: o usuário acha que a forma atual de avaliar evolução de patrimônio na tela de Investimentos (sessão #15) pode não ser a mais útil, especificamente o **gráfico "Evolução do patrimônio × CDI"** (patrimônio em R$ no eixo esquerdo vs. CDI acumulado em % no eixo direito, dois eixos Y independentes — ver seção "Investimentos (sessão #15)" do `CLAUDE.md`). Dúvida em aberto: **valor absoluto (R$) comparado a um % de referência (CDI) não é o comparativo mais natural** — o usuário aponta que talvez faça mais sentido um **comparativo de rendimento da carteira** (percentual x percentual, ex.: rentabilidade acumulada da carteira vs. rentabilidade acumulada do CDI no mesmo período, ambos em %), no estilo do que apps de gestão de carteira/investimentos (XP, StatusInvest, Kinvo etc.) costumam mostrar.
-
-⚠️ **Precisa de mais conversa antes de rodar** (usuário, 2026-07-26): sessão registrada só como intenção — **não iniciar direto** a partir do gráfico atual. Antes de escrever o SDD, retomar com o usuário para fechar:
-- Qual comparação faz mais sentido pro objetivo dele: rentabilidade da carteira (%) vs. CDI (%) no mesmo eixo, ao invés dos dois eixos atuais (R$ vs. %)?
-- Vale manter a curva de patrimônio em R$ em algum lugar (ela ainda tem valor pra ver "quanto tenho", só não deveria ser comparada diretamente ao CDI em %) — talvez como gráfico separado do comparativo de rendimento?
-- Quais outras visualizações de apps de carteira o usuário tem em mente como referência (ex.: rentabilidade por classe de ativo lado a lado, drawdown, contribuição de aportes vs. rendimento real no período, ranking de melhor/pior investimento)?
-- O cálculo já existe no backend (`InvestmentReturnCalculator`, TWR simplificado, sessão #13) e no cliente (`investments.utils.ts` reconstrói a timeline de saldo por investimento) — a mudança é sobretudo de **qual métrica plotar e como**, não necessariamente de infraestrutura de cálculo nova; mas comparar % de rentabilidade da carteira exige derivar uma série de "rentabilidade acumulada da carteira" a partir da timeline de saldo + fluxos (aporte/resgate), o que ainda não existe pronto — precisa ser desenhado.
-
-Pré-req: nenhum tecnicamente (mexe só na tela de Investimentos, sessões #13/#14/#15); recomendado decidir a direção antes de misturar com a #33 (refino visual geral), já que aqui a mudança é de **conteúdo/métrica exibida**, não só estilo.
+Motivação: hoje só existe saldo total agregado em regime de competência. Falta ver o saldo **por conta** e o **dinheiro real disponível** considerando quando faturas são pagas.
+Decisão: manter competência como padrão + **adicionar** visão de caixa por conta ("dinheiro real" agora vs. depois de pagar fatura em aberto).
+Tasks a refinar: (1) cálculo de saldo de caixa por conta; (2) endpoint (as duas visões); (3) UI (Configurações e/ou Dashboard); (4) testes; (5) verificação e2e.
+Pré-req: #25; roda melhor depois da #27 (pra não somar contas/cartões arquivados indevidamente).
 
 **#37 — Loja de temas personalizados ("Supernova", "Pulsar", "Buraco Negro"...)** 📋 PLANEJADA (pedido do usuário 2026-07-31)
 
-Motivação: hoje o app tem só dois temas fixos (claro/escuro, sessão #23) controlados por `ThemeService` — o usuário quer ir além, oferecendo uma **loja de temas personalizados** com nomes de tema espacial (Supernova, Pulsar, Buraco Negro etc.) pra deixar a experiência mais personalizável, tipo o que apps de consumo (Spotify, Discord) fazem com skins/temas.
+Motivação: hoje só dois temas fixos (claro/escuro, #23) via `ThemeService`. Ideia: loja de temas nomeados (espacial), tipo skins de apps de consumo.
+Base técnica já pronta pra estender: `ThemeService` já troca `data-theme` + persiste em localStorage; `styles.css` já é 100% variável CSS (nenhuma cor hardcoded); gráficos já leem cor do tema via `chart-theme.ts`.
+Pontos a refinar: temas hardcoded no frontend vs. configuráveis no backend; UI de seleção (galeria com preview); acessibilidade (contraste WCAG AA em cada tema novo); persistência (localStorage vs. backend).
+Pré-req: nenhum tecnicamente; recomendado rodar depois da #33 (já concluída).
 
-O que já existe a favor (base técnica já pronta pra estender, não pra recriar):
-- `ThemeService` (`core/theme/theme.service.ts`) já controla o tema via um `data-theme` no `<html>` + persistência em `localStorage` — o padrão de "trocar um atributo e persistir a escolha" já existe, só precisa ir de um switch binário (claro/escuro) pra uma lista de N temas.
-- `styles.css` já usa variáveis CSS (`:root`, `:root[data-theme="dark"]`) pra tudo — cor não é hardcoded em componente nenhum (regra não-negociável do projeto, `CLAUDE.md`) — ou seja, um novo tema é "só" um novo bloco de variáveis, sem tocar em HTML/TS dos componentes.
-- Gráficos Chart.js já leem cor do tema via `core/theme/chart-theme.ts` — um tema novo precisaria alimentar esse mesmo mecanismo (paleta do gráfico como parte da definição do tema, não hardcoded).
+### Sessões que precisam de mais conversa antes de virar SDD
 
-Ideias iniciais de escopo (a refinar quando for rodar):
-1. Modelo de dados: cada tema é um conjunto nomeado de variáveis CSS (cores de fundo, texto, accent, sidebar, paleta do gráfico) — decidir se os temas ficam **hardcoded no frontend** (mais simples, todo usuário vê a mesma lista fixa) ou **configuráveis no backend** (`themes` table, abre espaço pra usuário customizar as próprias cores no futuro, mas adiciona complexidade de CRUD/validação de contraste de acessibilidade).
-2. UI de seleção: uma "loja"/galeria em Configurações com preview de cada tema antes de aplicar (thumbnail ou preview ao vivo).
-3. Nomenclatura temática espacial dá oportunidade de branding divertido (Supernova = tons vibrantes, Pulsar = alto contraste, Buraco Negro = dark extremo) — vale um moodboard rápido antes de codar as paletas de verdade.
-4. Acessibilidade: cada tema novo precisa passar no mesmo padrão de contraste mínimo (WCAG AA) que os temas claro/escuro atuais já devem seguir — não é só "colocar cor bonita", tem que continuar legível.
-5. Persistência: mesma lógica do `ThemeService` atual (localStorage), ou migrar pra persistir no backend (preferência do usuário) se o produto crescer pra multi-dispositivo.
+**#31 — Empréstimos a pessoas / "a receber" (dívidas de terceiros com você)** 📋 PLANEJADA — ⚠️ precisa de mais refinamento (usuário, 2026-07-26)
 
-Pré-req: nenhum tecnicamente (roda em cima da #23, que já criou a arquitetura de tema via variável CSS); recomendado rodar **depois da #33** (refino visual) — faz mais sentido definir a escala tipográfica/tokens de espaçamento antes de multiplicar temas em cima de uma base ainda não refinada.
+Motivação: hoje não dá pra registrar dinheiro que **você emprestou** a alguém (ativo a receber). Falta consultar, por pessoa, quanto te devem e acompanhar o recebimento (inclusive parcelado).
+Proposta inicial: entidade `Person` + `loan` (valor, data, pessoa, conta de origem, parcelamento do recebimento). Efeito no saldo a decidir: emprestar reduz o caixa da conta de origem mas não conta como gasto; receber de volta abate o saldo devedor sem virar receita.
+Nota 2026-08-02: distinta e complementar da nova **#43** (dívida que você **toma** de um banco — direção oposta). Decidir junto se as duas viram uma aba única "Dívidas" ou continuam separadas.
+Pré-req: #25; casa melhor depois da #28 (reusa conceito de saldo de caixa).
 
-**#38 — LLM local para análise de gestão financeira (estudo de viabilidade)** 📋 PLANEJADA — ⚠️ **precisa de estudo de viabilidade antes de virar SDD** (pedido do usuário 2026-07-31)
+**#35 — Rollback de deploy em produção** 📋 PLANEJADA — ⚠️ precisa de mais conversa (pedido do usuário 2026-07-26)
 
-Motivação: usar uma LLM pequena rodando dentro da própria infra (o usuário citou Hugging Face como ponto de partida) pra ajudar o usuário a interpretar a própria gestão financeira — ex. resumir padrões de gasto, sinalizar categorias fora do padrão, sugerir onde cortar, responder perguntas em linguagem natural sobre os próprios dados.
+Motivação: `deploy.yml` sempre sobe `latest`, sem forma de voltar a uma versão anterior sem editar o workflow na mão.
+Já existe a favor: imagens já publicadas com tag por SHA no GHCR; migrations Flyway numeradas e sequenciais.
+Escopo: parametrizar `deploy.yml` (`image_tag` opcional); coordenar api+web na mesma tag; documentar (não automatizar) o caso de migration não-reversível (plano B = restore do backup S3); reforçar disciplina de migrations aditivas.
+Pontos a fechar: até onde automatizar (alerta em deploy revertido?) vs. manter simples.
+Pré-req: nenhum tecnicamente; recomendado depois da #24 (já concluída).
 
-⚠️ **Esta sessão não tem escopo fechado de propósito** — o próprio usuário pediu pra "refinar e ver a viabilidade" antes de qualquer coisa. Pontos a decidir junto antes de escrever um SDD:
+**#36 — Repensar a tela de Investimentos (evolução de patrimônio e comparativos de rendimento)** 📋 PLANEJADA — ⚠️ precisa de mais conversa (pedido do usuário 2026-07-26)
 
-1. **Onde a LLM roda e com que custo de infra**: a instância de produção é Lightsail 1GB (sessão #21) — rodar um modelo local (mesmo "pequeno") provavelmente não cabe nessa instância sem upgrade de plano (mais RAM/CPU, ou GPU se o modelo exigir). Alternativas: (a) modelo pequeno o suficiente pra rodar em CPU numa instância maior; (b) usar a **Inference API da Hugging Face** (hospedada por eles, paga por uso, sem precisar rodar nada localmente) em vez de hospedar o modelo — mais simples de operar, mas sai do escopo "rodar dentro"; (c) usar um provedor de LLM via API (Anthropic/OpenAI/etc.) em vez de Hugging Face — mais caro por request mas zero infra própria. Essas três opções têm trade-offs de custo/controle/privacidade bem diferentes — precisa decidir junto.
-2. **Privacidade dos dados financeiros**: seja qual for a opção de infra, os dados que alimentam a análise são financeiros e sensíveis (mesma preocupação que already levou o projeto a manter o modelo de ameaças STRIDE fora do repo público, sessão #S/#29) — se a opção envolver enviar dados pra fora da própria infra (Hugging Face Inference API, ou qualquer provedor terceiro), isso muda o modelo de ameaças e possivelmente a política de privacidade/LGPD do produto (`docs/security/lgpd.md`) — precisa avaliar antes, não depois.
-3. **Qual modelo e qual tarefa exatamente**: "análise da gestão financeira" é amplo — precisa virar algo concreto e testável, ex.: (a) resumo em texto do mês (parecido com o que já existe no Dashboard, sessão #11, mas em linguagem natural); (b) detecção de anomalia de gasto (estatística, não necessariamente precisa de LLM — vale considerar se um modelo bem mais simples resolveria sem o custo/complexidade de uma LLM); (c) chat livre sobre os próprios dados (mais complexo, precisa de RAG ou tool-calling contra a API pra não alucinar números).
-4. **Viabilidade de custo recorrente**: mesmo hospedado, inferência de LLM tem custo por uso (CPU/GPU-tempo ou API); precisa estimar se isso é sustentável pro modelo de "uso pessoal com potencial de virar SaaS" (`CLAUDE.md`) — o mesmo trade-off já registrado na #22 (Open Finance) sobre custo por usuário conectado.
-5. Só depois de decidir 1-4 escrever um SDD de verdade com escopo fechado.
+Motivação: o gráfico atual "Evolução do patrimônio × CDI" compara R$ absoluto com % (dois eixos Y) — usuário acha que comparar **rentabilidade % da carteira vs. % do CDI** faria mais sentido (estilo XP/StatusInvest/Kinvo).
+Pontos a fechar: qual comparação faz mais sentido; manter curva de patrimônio em R$ separada; outras visualizações de referência (rentabilidade por classe, drawdown, ranking). Cálculo já existe (`InvestmentReturnCalculator`, TWR); mudança é sobretudo de qual métrica plotar.
+Pré-req: nenhum tecnicamente; decidir direção antes de misturar com refino visual (já concluído na #33).
 
-Pré-req: nenhum tecnicamente pra começar a *discussão*; recomendado ter o refino visual (#33) e o hardening (#24, já concluído) resolvidos antes de somar uma peça de infra nova e potencialmente cara à stack.
+**#38 — LLM local para análise de gestão financeira (estudo de viabilidade)** 📋 PLANEJADA — ⚠️ precisa de estudo de viabilidade (pedido do usuário 2026-07-31)
 
-**#39 — SEO** 📋 PLANEJADA — ⚠️ **precisa de organização/pesquisa antes de virar SDD** (pedido do usuário 2026-08-01: "organizar uma sessão de SEO")
+Motivação: LLM pequena (Hugging Face como ponto de partida) pra ajudar a interpretar a gestão financeira — resumir padrões, sinalizar anomalias, responder perguntas em linguagem natural.
+Pontos a decidir antes do SDD: onde roda e com que custo de infra (Lightsail 1GB não aguenta modelo local — considerar Inference API HF ou provedor terceiro); privacidade dos dados financeiros (mudaria modelo de ameaças STRIDE se sair da própria infra); qual tarefa concreta e testável; viabilidade de custo recorrente.
+Pré-req: nenhum tecnicamente pra começar a discussão.
 
-Motivação: hoje o app é 100% autenticado — até a sessão #40 (landing pública, ver abaixo), não existia nenhuma página pública indexável; o que um crawler encontra em `/` é, na melhor das hipóteses, a tela de login. SEO de verdade só faz sentido **depois** da #40 existir, porque é a landing/FAQ que vira o conteúdo indexável — o dashboard autenticado nunca deveria ser indexado (dados financeiros do usuário).
+**#41 — Integração WhatsApp (lançar gastos em linguagem natural)** 📋 PLANEJADA — ⚠️ precisa de mais conversa (pedido do usuário 2026-08-01)
 
-Pontos a organizar antes de escrever o SDD (por isso "precisa de organização", não é só rodar):
-1. **Meta tags por rota pública** (`<title>`, `<meta name="description">`, Open Graph/Twitter Card) — hoje `index.html` tem um `<title>` fixo só, sem descrição nem OG; Angular SPA precisa de `Title`/`Meta` do `@angular/platform-browser` setados por componente (landing, FAQ), já que crawlers modernos executam JS mas nem todos, e o tempo até o conteúdo aparecer importa pro ranking.
-2. **`robots.txt` + `sitemap.xml`**: hoje não existem (`web/public/`) — precisam listar só as rotas públicas (`/`, `/faq`, `/login`?) e **bloquear** as rotas autenticadas (`/dashboard`, `/transacoes` etc. — não que um crawler conseguisse renderizar o conteúdo real sem login, mas não custa ser explícito).
-3. **Dados estruturados (JSON-LD)**: `Organization`/`SoftwareApplication` schema na landing, ajuda o Google a entender "o que é isso" além do texto puro.
-4. **Performance/Core Web Vitals**: Lighthouse na landing pública (LCP/CLS/INP) — landing pública tende a ser simples o suficiente pra tirar nota alta, mas vale medir depois de construída, não assumir.
-5. **Domínio canônico**: decidir `www.poupito.com` vs `poupito.com` como canônico (`<link rel="canonical">`) e configurar o redirect coerente (hoje o domínio real de produção é só `poupito.com`, conferir se `www` também resolve e pra onde).
-6. **Google Search Console** (verificação de propriedade, submissão do sitemap) — passo manual do usuário, mesma categoria dos runbooks de infra (CloudWatch/Cloudflare) já registrados na #24.
+Motivação: permitir mandar mensagem de WhatsApp em linguagem natural (ex. "gasto com padaria de 100 reais") e o Poupito criar a transação sozinho.
+Pontos a fechar: canal (WhatsApp Business Cloud API oficial vs. Twilio vs. libs não-oficiais — as não-oficiais não são recomendadas pra produção); extração NL→estruturado (LLM terceiro vs. regras locais — mesma preocupação de privacidade da #38); categoria/conta default; vínculo WhatsApp↔usuário com verificação; confirmação/correção de erro; segurança do webhook; custo recorrente por mensagem.
+Pré-req: nenhum técnico pra começar a discussão; recomendado com a Fase 4 mais avançada (#24 já concluída).
 
-Pré-req: **#40** (landing pública + FAQ) — SEO precisa ter o que otimizar primeiro.
+**#43 — Empréstimos/dívidas tomadas de banco (a pagar)** 📋 PLANEJADA — ⚠️ precisa de mais conversa (pedido do usuário 2026-08-02)
 
-**#40 — Landing pública + FAQ para novos usuários** ✅ CONCLUÍDA (2026-08-01 — SDD: `docs/session-40-landing-faq/SDD.md`; pedido do usuário: "colocar algumas coisas agora que tá produtivo")
+Motivação: diferente da #31 (inverso — dinheiro que você emprestou, ativo a receber), esta é sobre **dívida que o usuário tomou** — empréstimo bancário/financiamento, um **passivo a pagar**. Efeitos opostos no saldo, não reaproveita a modelagem da #31 diretamente.
+Pontos a fechar: escopo (só empréstimo bancário, ou também cheque especial etc.); efeito no saldo (contratação = entrada especial? separar principal de juros?); aba própria "Dívidas" vs. unificada com #31; cronograma simples vs. tabela Price/SAC; saldo devedor e integração com #28.
+Pré-req: nenhum técnico pra começar a discussão; decidir junto com a #31 se viram uma única aba "Dívidas".
 
-Motivação: antes desta sessão **não existia nenhuma página pública** — `app.routes.ts` tinha `path: ''` casando com o `Shell` (autenticado, atrás do `authGuard`), que redirecionava qualquer visitante não-logado direto pra `/login`. Um usuário novo que chegasse no domínio não tinha como entender do que se trata o app antes de já estar na tela de "Entre para gerenciar suas finanças".
+**#44 — Perfis personalizados de usuário ("Pouperfis")** 📋 PLANEJADA — ⚠️ precisa de decisão sobre armazenamento de imagem (pedido do usuário 2026-08-02)
 
-Entregue (ver `CLAUDE.md`, seção "Landing pública + FAQ"): **Landing** (`features/landing/`, rota `/`) explicando o Poupito e suas features, com CTA "Criar conta grátis"; **Faq** (`features/faq/`, rota `/faq`) com 6 perguntas comuns pré-cadastro via `<details>`/`<summary>` nativo. **Reestruturação de rotas sem quebrar nenhum path existente**: a Landing entra como primeira rota com `path: '', pathMatch: 'full'` (essencial — sem isso faria *prefix match* e "roubaria" `/dashboard` etc. do `Shell`, que continua com `path: ''` sem `pathMatch`, mantendo seu comportamento de sempre); `redirectIfAuthenticatedGuard` novo (espelha o `authGuard`) manda usuário já logado direto pro `/dashboard` ao visitar `/`. Todos os paths autenticados (`/dashboard`, `/transacoes` etc.) **permaneceram idênticos**.
-Testes: 9 novos specs (Landing, Faq, guard), 304/304 Karma, cobertura 97,21/87,36/93,97/97,14. Verificado ao vivo: `/` mostra Landing, `/faq` acessível sem sessão, `/dashboard` sem sessão continua redirecionando pro login (comportamento preservado).
-Fora de escopo (vira a #39): SEO propriamente dito (meta tags, sitemap, robots.txt, JSON-LD).
+Motivação: hoje não existe tela de perfil — só email/senha e preferências soltas (tema). Ideia: espaço próprio com foto de perfil e preferências centralizadas.
+Pontos a fechar: armazenamento de foto (S3, reaproveitando a conta AWS do backup, vs. avatar gerado por iniciais sem upload); quais preferências entram (nome de exibição, mover toggle de tema pra cá); migration `display_name` em `User`; validação de upload se for S3.
+Pré-req: nenhum técnico pra começar a discussão.
 
-Pré-req: nenhum. Roda **antes** da #39 (SEO depende dela existir).
+## 7. Fase 5 — Futuro (sem sessão planejada ainda)
 
-### Fase 5 — Futuro (sem sessão planejada ainda)
+Ideias soltas: Multi-tenancy real, plano free/pago, cotações via brapi.dev, app mobile consumindo a mesma API. *(A feature "a receber/emprestado" virou a sessão #31; a "dívida tomada" virou a #43.)*
 
-Ideias soltas: Multi-tenancy real, plano free/pago, cotações via brapi.dev, app mobile consumindo a mesma API. *(A feature "a receber/emprestado — contas mãe" virou a sessão #31, formalizada acima.)*
+Nota de arquitetura sobre escala/SaaS (tenancy, migrações em produção, custos aproximados de infra HA) preservada em `docs/PLANO-HISTORICO.md` — ainda não é uma sessão planejada, só análise de referência pra quando fizer sentido.
 
-#### Escala / virar SaaS — tenancy, migrações e infra (nota de arquitetura, 2026-07-24)
-
-**Tenancy:** o app já nasce no modelo **pool** (shared DB + shared schema, tudo escopado por `user_id`) — o certo pra B2C. Virar SaaS **não exige reprojetar o domínio**; as migrations continuam sendo **uma execução de Flyway por deploy**. Alternativas (schema-per-tenant / db-per-tenant) só compensam pra isolamento enterprise/regulado, com custo operacional bem maior.
-
-**Migrações em escala (o que muda é o *processo*, não os arquivos):**
-- **Expand → migrate → contract:** migration aditiva compatível com a versão *antiga* do app durante o rolling deploy; limpeza (`DROP`/`RENAME`) só num deploy posterior. Uma migration nunca pode quebrar o app que ainda está no ar.
-- **Tirar o Flyway do boot da API** e rodar como **passo separado do pipeline** (job/init antes de subir as réplicas) — evita corrida entre N instâncias.
-- **Evitar locks em tabela grande:** `CREATE INDEX CONCURRENTLY`, coluna nullable + backfill em lotes (nunca `UPDATE` gigante que trava a tabela).
-- **Postgres gerenciado** (RDS/Aurora) com PITR/snapshots/réplicas — rede de segurança pra migrar em produção.
-- **(dado financeiro) Postgres RLS** como defesa-em-profundidade: políticas no banco garantem isolamento por tenant mesmo se um bug na app esquecer o `where user_id`.
-
-**Migração dos dados existentes (Lightsail → RDS) — NÃO confundir com migration do Flyway:** "migration do Flyway" versiona o *schema* (V1..V12); "migração de dados" move as *linhas* dos usuários de um Postgres pro outro. O RDS sobe vazio e você copia o banco pra dentro dele.
-- **Método pro tamanho atual (`pg_dump` + `pg_restore`, janela de manutenção de poucos minutos):**
-  1. RDS vazio, mesma versão major (16); liberar rede (ver pegadinha abaixo).
-  2. Congelar escritas: `docker compose stop api`.
-  3. Dump: `docker exec poupito-postgres-prod pg_dump -U poupito -d poupito -Fc > poupito.dump`
-  4. Restore: `pg_restore -h <endpoint-rds> -U <master> -d poupito --no-owner --no-privileges poupito.dump`
-  5. Apontar a API pro RDS (`DB_HOST`/`DB_URL`/`DB_USER`/`DB_PASSWORD` no `.env`), tirar o container `postgres` do compose, `docker compose up -d api`.
-  6. Validar (login + dados); só então desativar o Postgres local. **Rollback:** apontar a API de volta enquanto o dado antigo existir.
-- O dump leva a `flyway_schema_history` junto → o RDS já nasce no V12 e o **Flyway não re-roda nada** (schema + dados chegam prontos).
-- **Zero-downtime (quando houver tráfego que não pode cair):** trocar o dump por replicação contínua — **AWS DMS** (carga inicial + CDC das mudanças, cutover instantâneo) ou logical replication nativa do Postgres.
-- **Pegadinha de rede:** o Lightsail fica numa VPC separada da VPC padrão do RDS — por padrão não se enxergam. Habilitar **VPC peering** (Console → Account → Advanced) ou já rodar a compute (EC2/ECS) na mesma VPC do RDS.
-
-**Infra nova necessária (além do deploy atual de 1 VM Lightsail):**
-- **Postgres gerenciado** (sai da VM) — RDS/Aurora.
-- **Compute dedicada** pra API (sai do burstable) — ECS Fargate ou EC2 não-burst; 2+ réplicas pra HA.
-- **Load balancer (ALB)** na frente das réplicas + TLS.
-- **Frontend estático** → S3 + CloudFront (em vez do Caddy servir o build).
-- **Observabilidade** (CloudWatch — já é a #24) + **Secrets Manager**.
-- CI/CD já publica imagens (GHCR); adicionar o passo de migração no pipeline.
-
-**Custos aproximados (referência us-east-1, variam bastante):**
-
-| Item | Hoje (uso pessoal) | SaaS mínimo com HA |
-|---|---|---|
-| Compute (API) | Lightsail US$5–10/mês (tudo junto) | Fargate/EC2 ~US$35–80/mês (1–2 réplicas) |
-| Postgres | na mesma VM (grátis) | RDS `t4g.small` ~US$25–30 (single-AZ) / ~US$50–60 (Multi-AZ HA) + storage ~US$0,12/GB |
-| Load balancer | Caddy (grátis) | ALB ~US$16–20/mês + tráfego |
-| Frontend | Caddy serve o estático | S3+CloudFront ~US$1–5/mês |
-| Observabilidade/Secrets | — | CloudWatch + Secrets Manager ~US$5–15/mês |
-| **Total aprox.** | **~US$10/mês** | **~US$90–180/mês** (piso; escala com tenants/tráfego) |
-
-O salto de "app pessoal" pra "SaaS com HA" é de ~US$10 pra ~US$100+/mês só de infra base — faz sentido **só quando houver tração/receita**. Enquanto é pessoal, a VM única no Lightsail (2GB) está perfeita. *Aurora Serverless v2* é uma alternativa elástica (paga pelo uso), mas tem piso ~US$40+/mês se ficar sempre ligado. Região `sa-east-1` (São Paulo) costuma ser ~15–30% mais cara que `us-east-1`.
-
-## 6. Grafo de dependências (resumo)
+## 8. Grafo de dependências (resumo)
 
 ```
 #1 → #2 → #3 → #4
@@ -433,10 +205,9 @@ O salto de "app pessoal" pra "SaaS com HA" é de ~US$10 pra ~US$100+/mês só de
                                #4 + #12 → #21
 ```
 
-Sessões #13–#16 (investimentos) podem rodar em paralelo com a Fase 1 a partir da sessão #2.
+Sessões #13–#16 (investimentos) puderam rodar em paralelo com a Fase 1 a partir da sessão #2.
 
-## 7. Decisões em aberto (herdadas da spec)
+## 9. Decisões em aberto (herdadas da spec)
 
 - Categoria "Itaú" da planilha mistura conta com categoria → no import (#12), mapear cartão como conta e pedir categoria real.
-- ~~"Contas mãe" (empréstimos a familiares) → avaliar feature "a receber" na Fase 3/4.~~ **Resolvido:** virou a sessão **#31 — Empréstimos a pessoas / "a receber"** (a refinar no SDD; decisões de modelagem e efeito no saldo já esboçadas lá).
 - Keycloak em vez de JWT próprio se SSO for necessário no futuro (migração possível sem quebrar a API).

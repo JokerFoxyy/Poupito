@@ -93,6 +93,16 @@
   padding: 0;
   box-sizing: border-box;
   font-family: 'Manrope', 'Segoe UI', Roboto, system-ui, -apple-system, sans-serif;
+  /* Remove o flash cinza/azul padrão de toque do Android WebView — o app já
+     dá feedback próprio (:active scale, :hover, :focus-visible), sessão #33. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Fundo também no <html> (não só no <body>): em WebView/iOS o "rubber-band"
+   do overscroll pode expor um instante o que está atrás do body — sem isso
+   aparece um flash branco/preto fora do tema ao puxar além do topo/fim. */
+html {
+  background: var(--bg);
 }
 
 body {
