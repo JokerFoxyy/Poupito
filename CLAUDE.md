@@ -78,6 +78,8 @@ npm run build:prod
 
 **Gotcha de JDK:** o `java` default da máquina é 19; o projeto exige 21. Antes de qualquer comando Maven: `$env:JAVA_HOME = "C:\Program Files\Java\jdk-21"` (PowerShell). Os testes de integração usam Testcontainers — Docker Desktop precisa estar de pé, senão o contexto falha com "find a Docker environment failed".
 
+**Usuário de teste local (dev, criado 2026-08-09):** pra verificar telas autenticadas no browser sem precisar registrar uma conta na mão toda vez — `teste.dev@poupito.local` / `PoupitoDev#2026` (atende a política de senha forte). Já tem 1 conta ("Conta Teste", CHECKING) e 1 categoria ("Alimentacao", EXPENSE) cadastradas, pra telas que exigem isso pra habilitar ações (ex. "Nova transação"). Vive no volume `pgdata` do Postgres local (`docker compose -f infra/docker-compose.yml up -d`) — sobrevive a `down`/`up`, só some se o volume for removido (`down -v`) ou o banco for resetado. **Só existe no ambiente local — nunca usar em produção.**
+
 **URLs (context-path `/api`):** health em `http://localhost:8080/api/actuator/health`, Swagger em `http://localhost:8080/api/swagger-ui.html`. Endpoints: `/api/v1/...` (controllers usam `@RequestMapping("/v1/...")`; o prefixo vem de `server.servlet.context-path`).
 
 ## Qualidade — regras obrigatórias
