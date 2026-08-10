@@ -13,12 +13,16 @@ describe('CardsPanel', () => {
   let accountService: jasmine.SpyObj<AccountService>;
 
   const conta: Account = { id: 'a1', name: 'Nubank Conta', type: 'CHECKING' };
-  const nubank: Card = { id: '1', name: 'Nubank', accountId: 'a1', accountName: 'Nubank Conta', closingDay: 28, dueDay: 7 };
+  const nubank: Card = {
+    id: '1', name: 'Nubank', accountId: 'a1', accountName: 'Nubank Conta', closingDay: 28, dueDay: 7,
+    archived: false
+  };
 
   beforeEach(async () => {
-    cardService = jasmine.createSpyObj<CardService>('CardService', ['list', 'create', 'update', 'delete']);
+    cardService = jasmine.createSpyObj<CardService>(
+      'CardService', ['list', 'create', 'update', 'delete', 'archive', 'unarchive']);
     accountService = jasmine.createSpyObj<AccountService>('AccountService', ['list']);
-    cardService.list.and.returnValue(of([nubank]));
+    cardService.list.and.callFake((archived?: boolean) => of(archived ? [] : [nubank]));
     accountService.list.and.returnValue(of([conta]));
 
     await TestBed.configureTestingModule({
@@ -75,11 +79,49 @@ describe('CardsPanel', () => {
 
   it('should delete the card and reload the list', () => {
     cardService.delete.and.returnValue(of(void 0));
+    const callsBeforeDelete = cardService.list.calls.count();
 
     component.remove(nubank);
 
     expect(cardService.delete).toHaveBeenCalledWith('1');
-    expect(cardService.list).toHaveBeenCalledTimes(2);
+    expect(cardService.list.calls.count()).toBe(callsBeforeDelete + 1);
+  });
+
+  it('should archive a card and move it out of the main list into the archived section', () => {
+    cardService.archive.and.returnValue(of({ ...nubank, archived: true }));
+
+    component.archive(nubank);
+
+    expect(cardService.archive).toHaveBeenCalledWith('1');
+    expect(cardService.list).toHaveBeenCalledWith(true);
+  });
+
+  it('should unarchive a card and reload both lists', () => {
+    cardService.unarchive.and.returnValue(of(nubank));
+
+    component.unarchive(nubank);
+
+    expect(cardService.unarchive).toHaveBeenCalledWith('1');
+    expect(cardService.list).toHaveBeenCalledWith(true);
+  });
+
+  it('should show an error when archiving fails', () => {
+    cardService.archive.and.returnValue(throwError(() => new Error('500')));
+
+    component.archive(nubank);
+
+    expect(component.errorMessage()).toBe('Erro ao arquivar o cartão');
+  });
+
+  it('should render the archived cards in a separate section', () => {
+    cardService.list.and.callFake((archived?: boolean) =>
+      of(archived ? [{ ...nubank, id: '2', name: 'Antigo', archived: true }] : [nubank]));
+
+    component.ngOnInit();
+    fixture.detectChanges();
+
+    expect(component.archivedCards()).toEqual([jasmine.objectContaining({ name: 'Antigo' })]);
+    expect(fixture.nativeElement.textContent).toContain('Antigo');
   });
 
   it('should show error message when save fails', () => {

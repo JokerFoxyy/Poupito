@@ -2,6 +2,9 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { Observable, finalize, tap } from 'rxjs';
 
+import { AccountStore } from '../state/account.store';
+import { CardStore } from '../state/card.store';
+import { CategoryStore } from '../state/category.store';
 import { UserResponse } from './auth.models';
 
 // Flag NÃO-sensível apenas para roteamento no cliente. A credencial real é o cookie
@@ -12,6 +15,9 @@ const API = '/api/v1/auth';
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly http = inject(HttpClient);
+  private readonly accountStore = inject(AccountStore);
+  private readonly cardStore = inject(CardStore);
+  private readonly categoryStore = inject(CategoryStore);
 
   private readonly authed = signal<boolean>(localStorage.getItem(AUTH_FLAG) === '1');
   readonly isAuthenticated = this.authed.asReadonly();
@@ -56,11 +62,21 @@ export class AuthService {
     return this.http.post<void>(`${API}/logout`, {}).pipe(finalize(() => this.clearSession()));
   }
 
-  /** Limpeza local sem chamada de rede (usada quando o refresh falha). */
+  /**
+   * Limpeza local sem chamada de rede (usada quando o refresh falha). Também roda no logout
+   * explícito, via `finalize()` em `logout()` — é o único ponto que cobre as duas saídas de
+   * sessão, por isso os stores de dados de referência são resetados aqui: sem reload de página no
+   * logout (`Shell.logout()` só faz `router.navigate`), os stores `providedIn: 'root'` continuavam
+   * com os dados do usuário anterior em memória até uma mutação disparar `refresh()` — vazamento
+   * de dados entre contas na mesma aba (sessão #42).
+   */
   clearSession(): void {
     this.currentUser.set(null);
     this.authed.set(false);
     localStorage.removeItem(AUTH_FLAG);
+    this.accountStore.reset();
+    this.cardStore.reset();
+    this.categoryStore.reset();
   }
 
   private markAuthenticated(user: UserResponse): void {

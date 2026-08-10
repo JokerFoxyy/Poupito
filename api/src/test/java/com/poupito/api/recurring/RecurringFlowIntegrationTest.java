@@ -214,4 +214,63 @@ class RecurringFlowIntegrationTest {
 				.isEqualTo(HttpStatus.UNAUTHORIZED);
 	}
 
+	@Test
+	void shouldReturn409_whenDeletingRecurringWithLinkedTransaction() throws Exception {
+		String id = idOf(post("/v1/recurring", fixo("Spotify", "EXPENSE", expenseCategoryId, 10)));
+		rest.exchange("/v1/recurring/materialize?month=2026-07", HttpMethod.POST, new HttpEntity<>(headers),
+				String.class);
+
+		ResponseEntity<String> deleted = rest.exchange("/v1/recurring/" + id, HttpMethod.DELETE,
+				new HttpEntity<>(headers), String.class);
+
+		assertThat(deleted.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+	}
+
+	@Test
+	void shouldArchiveHideFromDefaultListAndStopMaterializing() throws Exception {
+		String id = idOf(post("/v1/recurring", fixo("Spotify", "EXPENSE", expenseCategoryId, 10)));
+
+		ResponseEntity<String> archived = rest.exchange("/v1/recurring/" + id + "/archive", HttpMethod.PATCH,
+				new HttpEntity<>(headers), String.class);
+		assertThat(archived.getStatusCode()).isEqualTo(HttpStatus.OK);
+		assertThat(objectMapper.readTree(archived.getBody()).get("archived").asBoolean()).isTrue();
+
+		// some da listagem default
+		assertThat(get("/v1/recurring").getBody()).doesNotContain("Spotify");
+		// mas aparece se pedir explicitamente os arquivados
+		assertThat(get("/v1/recurring?archived=true").getBody()).contains("Spotify");
+
+		// e não materializa mais, mesmo que "occursIn" continue verdadeiro
+		rest.exchange("/v1/recurring/materialize?month=2026-07", HttpMethod.POST, new HttpEntity<>(headers),
+				String.class);
+		JsonNode july = objectMapper.readTree(get("/v1/transactions?month=2026-07").getBody());
+		assertThat(july.get("totalElements").asLong()).isZero();
+	}
+
+	@Test
+	void shouldUnarchiveAndReappearInDefaultList() throws Exception {
+		String id = idOf(post("/v1/recurring", fixo("Spotify", "EXPENSE", expenseCategoryId, 10)));
+		rest.exchange("/v1/recurring/" + id + "/archive", HttpMethod.PATCH, new HttpEntity<>(headers), String.class);
+
+		ResponseEntity<String> unarchived = rest.exchange("/v1/recurring/" + id + "/unarchive", HttpMethod.PATCH,
+				new HttpEntity<>(headers), String.class);
+
+		assertThat(unarchived.getStatusCode()).isEqualTo(HttpStatus.OK);
+		assertThat(objectMapper.readTree(unarchived.getBody()).get("archived").asBoolean()).isFalse();
+		assertThat(get("/v1/recurring").getBody()).contains("Spotify");
+	}
+
+	@Test
+	void shouldKeepMaterializedOccurrenceVisible_afterArchiving() throws Exception {
+		String id = idOf(post("/v1/recurring", fixo("Spotify", "EXPENSE", expenseCategoryId, 10)));
+		rest.exchange("/v1/recurring/materialize?month=2026-07", HttpMethod.POST, new HttpEntity<>(headers),
+				String.class);
+
+		rest.exchange("/v1/recurring/" + id + "/archive", HttpMethod.PATCH, new HttpEntity<>(headers), String.class);
+
+		// histórico (transações já materializadas) não é afetado pelo arquivamento
+		JsonNode july = objectMapper.readTree(get("/v1/transactions?month=2026-07").getBody());
+		assertThat(july.get("totalElements").asLong()).isEqualTo(1);
+	}
+
 }

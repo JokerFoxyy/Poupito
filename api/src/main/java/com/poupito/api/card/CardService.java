@@ -27,8 +27,8 @@ public class CardService {
 	}
 
 	@Transactional(readOnly = true)
-	public List<CardResponse> list(UUID userId) {
-		List<Card> cards = cardRepository.findAllByUserIdOrderByNameAsc(userId);
+	public List<CardResponse> list(UUID userId, boolean archived) {
+		List<Card> cards = cardRepository.findAllByUserIdAndArchivedOrderByNameAsc(userId, archived);
 		Map<UUID, Account> accounts = accountRepository.findAllByUserIdOrderByNameAsc(userId).stream()
 				.collect(Collectors.toMap(Account::getId, Function.identity()));
 		return cards.stream()
@@ -69,6 +69,24 @@ public class CardService {
 	@Transactional
 	public void delete(UUID userId, UUID cardId) {
 		cardRepository.delete(findOwned(userId, cardId));
+	}
+
+	/**
+	 * Some da tela principal e dos seletores "Pagar com", mas o histórico (transações/faturas já
+	 * lançadas) continua intacto — alternativa ao delete quando há vínculo (sessão #42).
+	 */
+	@Transactional
+	public CardResponse archive(UUID userId, UUID cardId) {
+		Card card = findOwned(userId, cardId);
+		card.archive();
+		return CardResponse.from(card, accountRepository.findByIdAndUserId(card.getAccountId(), userId).orElse(null));
+	}
+
+	@Transactional
+	public CardResponse unarchive(UUID userId, UUID cardId) {
+		Card card = findOwned(userId, cardId);
+		card.unarchive();
+		return CardResponse.from(card, accountRepository.findByIdAndUserId(card.getAccountId(), userId).orElse(null));
 	}
 
 	private Card findOwned(UUID userId, UUID cardId) {

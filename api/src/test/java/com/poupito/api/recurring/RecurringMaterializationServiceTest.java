@@ -217,7 +217,7 @@ class RecurringMaterializationServiceTest {
 	@Test
 	void shouldMaterializeActiveRecurringsInScheduledJob() {
 		RecurringTransaction active = recurring(10, null, true);
-		when(recurringRepository.findAllByActiveTrue()).thenReturn(List.of(active));
+		when(recurringRepository.findAllByActiveTrueAndArchivedFalse()).thenReturn(List.of(active));
 		when(transactionRepository.findByRecurringIdAndDateBetween(any(), any(), any())).thenReturn(Optional.empty());
 		when(transactionRepository.save(any(Transaction.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -226,6 +226,17 @@ class RecurringMaterializationServiceTest {
 		ArgumentCaptor<Transaction> saved = ArgumentCaptor.forClass(Transaction.class);
 		verify(transactionRepository).save(saved.capture());
 		assertThat(saved.getValue().getRecurringId()).isEqualTo(active.getId());
+	}
+
+	@Test
+	void shouldNotMaterialize_whenRecurringIsArchived_evenIfOccursInMonth() {
+		RecurringTransaction archived = recurring(10, null, true);
+		archived.archive();
+		when(recurringRepository.findAllByUserIdOrderByDescriptionAsc(userId)).thenReturn(List.of(archived));
+
+		service.materializeForUserAndMonth(userId, YearMonth.of(2026, 7));
+
+		verify(transactionRepository, never()).save(any(Transaction.class));
 	}
 
 }

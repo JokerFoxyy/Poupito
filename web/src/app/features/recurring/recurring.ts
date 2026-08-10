@@ -33,6 +33,8 @@ export class Recurring implements OnInit {
   readonly editing = signal<RecurringModel | null>(null);
   readonly errorMessage = signal<string | null>(null);
   readonly methodLabels = PAYMENT_METHOD_LABELS;
+  /** Buscado à parte da listagem principal — só esta tela precisa ver arquivados (sessão #42). */
+  readonly archivedRecurrings = signal<RecurringModel[]>([]);
 
   /**
    * Totais do mês selecionado. Somam as **ocorrências** (não a lista crua de fixos), então já
@@ -58,6 +60,7 @@ export class Recurring implements OnInit {
     this.cardStore.ensureLoaded();
     this.categoryStore.ensureLoaded();
     this.load();
+    this.loadArchived();
   }
 
   onMonthChange(month: string): void {
@@ -187,13 +190,39 @@ export class Recurring implements OnInit {
   remove(recurring: RecurringModel): void {
     this.recurringService.delete(recurring.id).subscribe({
       next: () => this.load(),
-      error: () => this.errorMessage.set('Erro ao excluir o fixo')
+      error: () => this.errorMessage.set(
+        'Não foi possível excluir: pode ter ocorrência/transação vinculada. ' +
+        'Use "Arquivar" para tirar da tela sem perder o histórico.')
+    });
+  }
+
+  archive(recurring: RecurringModel): void {
+    this.recurringService.archive(recurring.id).subscribe({
+      next: () => {
+        this.load();
+        this.loadArchived();
+      },
+      error: () => this.errorMessage.set('Erro ao arquivar o fixo')
+    });
+  }
+
+  unarchive(recurring: RecurringModel): void {
+    this.recurringService.unarchive(recurring.id).subscribe({
+      next: () => {
+        this.load();
+        this.loadArchived();
+      },
+      error: () => this.errorMessage.set('Erro ao desarquivar o fixo')
     });
   }
 
   private load(): void {
     this.recurringService.list().subscribe((recurrings) => this.recurrings.set(recurrings));
     this.loadOccurrences();
+  }
+
+  private loadArchived(): void {
+    this.recurringService.list(true).subscribe((recurrings) => this.archivedRecurrings.set(recurrings));
   }
 
   private loadOccurrences(): void {

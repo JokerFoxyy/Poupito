@@ -74,10 +74,33 @@
           <td data-label="Fatura">fecha dia {{ card.closingDay }} · vence dia {{ card.dueDay }}</td>
           <td class="row-actions">
             <button type="button" class="link" (click)="openEdit(card)">Editar</button>
+            <button type="button" class="link" (click)="archive(card)">Arquivar</button>
             <button type="button" class="link danger" (click)="remove(card)">Excluir</button>
           </td>
         </tr>
       }
     </table>
+  }
+
+  @if (archivedCards().length > 0) {
+    <details class="archived-section">
+      <summary>Cartões arquivados ({{ archivedCards().length }})</summary>
+      <table>
+        <tr>
+          <th>Nome</th>
+          <th>Conta</th>
+          <th></th>
+        </tr>
+        @for (card of archivedCards(); track card.id) {
+          <tr>
+            <td data-label="Nome">{{ card.name }}</td>
+            <td data-label="Conta">{{ card.accountName ?? '—' }}</td>
+            <td class="row-actions">
+              <button type="button" class="link" (click)="unarchive(card)">Desarquivar</button>
+            </td>
+          </tr>
+        }
+      </table>
+    </details>
   }
 </div>

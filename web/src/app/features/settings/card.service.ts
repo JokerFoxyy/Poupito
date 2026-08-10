@@ -17,8 +17,8 @@ export interface CardPayload {
 export class CardService {
   private readonly http = inject(HttpClient);
 
-  list(): Observable<Card[]> {
-    return this.http.get<Card[]>(API);
+  list(archived = false): Observable<Card[]> {
+    return this.http.get<Card[]>(API, { params: { archived } });
   }
 
   create(payload: CardPayload): Observable<Card> {
@@ -31,5 +31,14 @@ export class CardService {
 
   delete(id: string): Observable<void> {
     return this.http.delete<void>(`${API}/${id}`);
+  }
+
+  /** Some da tela principal e dos seletores "Pagar com", mas o histórico é preservado (sessão #42). */
+  archive(id: string): Observable<Card> {
+    return this.http.patch<Card>(`${API}/${id}/archive`, {});
+  }
+
+  unarchive(id: string): Observable<Card> {
+    return this.http.patch<Card>(`${API}/${id}/unarchive`, {});
   }
 }

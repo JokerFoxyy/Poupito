@@ -20,6 +20,7 @@ export interface Recurring {
   dayOfMonth: number;
   active: boolean;
   endDate: string | null;
+  archived: boolean;
 }
 
 export interface RecurringPayload {

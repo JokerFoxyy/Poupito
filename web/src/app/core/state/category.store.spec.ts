@@ -52,4 +52,15 @@ describe('CategoryStore', () => {
     store.delete('1').subscribe();
     expect(store.categories()).toEqual([]);
   });
+
+  it('should clear the signal and force a re-fetch on next ensureLoaded after reset (sessão #42)', () => {
+    store.ensureLoaded();
+    expect(store.categories()).toEqual([mercado]);
+
+    store.reset();
+
+    expect(store.categories()).toEqual([]);
+    store.ensureLoaded();
+    expect(service.list).toHaveBeenCalledTimes(2);
+  });
 });

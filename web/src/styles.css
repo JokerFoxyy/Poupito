@@ -436,6 +436,23 @@ td {
   margin-bottom: 12px;
 }
 
+/* Seção discreta de itens arquivados (Cartões/Fixos, sessão #42) — colapsada por padrão,
+   só some visível se o usuário abrir; some inteira se não houver nenhum item arquivado. */
+.archived-section {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+.archived-section summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.archived-section table {
+  margin-top: var(--space-3);
+}
+
 /* Ações de linha (Editar/Excluir) — sessão #33.
    NÃO usar `display: flex` aqui: esta classe é aplicada direto no <td>, e o flex
    sobrescreve o `display: table-cell` nativo, tirando a célula do layout da tabela

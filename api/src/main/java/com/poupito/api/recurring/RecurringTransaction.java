@@ -59,6 +59,14 @@ public class RecurringTransaction {
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
 
+	/**
+	 * Some da tela principal e dos seletores "Pagar com", mas o histórico é preservado (sessão
+	 * #42) — distinto de {@code active}: esse pausa/retoma a materialização mensal (#8/#32) mas
+	 * mantém o fixo visível na tela; arquivado nunca materializa, mesmo com active=true.
+	 */
+	@Column(nullable = false)
+	private boolean archived = false;
+
 	protected RecurringTransaction() {
 	}
 
@@ -97,12 +105,26 @@ public class RecurringTransaction {
 		this.endDate = endDate;
 	}
 
+	public void archive() {
+		this.archived = true;
+	}
+
+	public void unarchive() {
+		this.archived = false;
+	}
+
 	/** Data da ocorrência num dado mês (dia clampado ao fim do mês). */
 	public LocalDate occurrenceDate(java.time.YearMonth month) {
 		return month.atDay(Math.min(dayOfMonth, month.lengthOfMonth()));
 	}
 
-	/** O fixo gera ocorrência neste mês? (ativo e não encerrado antes da data da ocorrência) */
+	/**
+	 * O fixo gera ocorrência neste mês? (ativo e não encerrado antes da data da ocorrência).
+	 * Propositalmente <b>não</b> checa {@code archived}: usado também pra exibir ocorrências já
+	 * materializadas antes de um fixo ser arquivado (histórico não pode sumir) — quem barra
+	 * arquivado de materializar ocorrência <em>nova</em> é o chamador (ver
+	 * {@link RecurringMaterializationService}).
+	 */
 	public boolean occursIn(java.time.YearMonth month) {
 		if (!active) {
 			return false;
@@ -157,6 +179,10 @@ public class RecurringTransaction {
 
 	public LocalDate getEndDate() {
 		return endDate;
+	}
+
+	public boolean isArchived() {
+		return archived;
 	}
 
 }

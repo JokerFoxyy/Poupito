@@ -80,4 +80,21 @@ describe('AccountStore', () => {
     expect(consumerA()).toEqual([carteira]);
     expect(consumerB()).toEqual([carteira]);
   });
+
+  it('should clear the signal and force a re-fetch on next ensureLoaded after reset (sessão #42 — bug de vazamento entre usuários)', () => {
+    store.ensureLoaded();
+    expect(store.accounts()).toEqual([nubank, carteira]);
+
+    store.reset();
+
+    expect(store.accounts()).toEqual([]);
+
+    // próximo usuário logando na mesma aba: sem reset(), ensureLoaded() não faria nada
+    // (loaded já era true) e essa tela continuaria mostrando os dados do usuário anterior.
+    service.list.and.returnValue(of([nubank]));
+    store.ensureLoaded();
+
+    expect(service.list).toHaveBeenCalledTimes(2);
+    expect(store.accounts()).toEqual([nubank]);
+  });
 });
