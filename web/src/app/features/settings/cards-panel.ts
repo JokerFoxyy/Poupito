@@ -3,6 +3,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 
 import { AccountStore } from '../../core/state/account.store';
 import { CardStore } from '../../core/state/card.store';
+import { CardService } from './card.service';
 import { Card } from './settings.models';
 
 @Component({
@@ -13,6 +14,7 @@ import { Card } from './settings.models';
 export class CardsPanel implements OnInit {
   private readonly cardStore = inject(CardStore);
   private readonly accountStore = inject(AccountStore);
+  private readonly cardService = inject(CardService);
   private readonly formBuilder = inject(FormBuilder);
 
   readonly cards = this.cardStore.cards;
@@ -20,6 +22,12 @@ export class CardsPanel implements OnInit {
   readonly editing = signal<Card | null>(null);
   readonly showForm = signal(false);
   readonly errorMessage = signal<string | null>(null);
+  /**
+   * Buscado à parte (não pelo CardStore compartilhado) — só esta tela de gestão precisa ver
+   * cartões arquivados; contaminar o store global obrigaria todo consumidor de "Pagar com" a
+   * filtrar de novo (sessão #42).
+   */
+  readonly archivedCards = signal<Card[]>([]);
 
   readonly form = this.formBuilder.nonNullable.group({
     name: ['', [Validators.required, Validators.maxLength(100)]],
@@ -31,6 +39,11 @@ export class CardsPanel implements OnInit {
   ngOnInit(): void {
     this.cardStore.ensureLoaded();
     this.accountStore.ensureLoaded();
+    this.loadArchived();
+  }
+
+  private loadArchived(): void {
+    this.cardService.list(true).subscribe((cards) => this.archivedCards.set(cards));
   }
 
   openCreate(): void {
@@ -82,7 +95,28 @@ export class CardsPanel implements OnInit {
   remove(card: Card): void {
     this.cardStore.delete(card.id).subscribe({
       error: () => this.errorMessage.set(
-        'Não foi possível excluir: o cartão pode ter transações ou faturas vinculadas.')
+        'Não foi possível excluir: o cartão pode ter transações ou faturas vinculadas. ' +
+        'Use "Arquivar" para tirar da tela sem perder o histórico.')
+    });
+  }
+
+  archive(card: Card): void {
+    this.cardService.archive(card.id).subscribe({
+      next: () => {
+        this.cardStore.refresh();
+        this.loadArchived();
+      },
+      error: () => this.errorMessage.set('Erro ao arquivar o cartão')
+    });
+  }
+
+  unarchive(card: Card): void {
+    this.cardService.unarchive(card.id).subscribe({
+      next: () => {
+        this.cardStore.refresh();
+        this.loadArchived();
+      },
+      error: () => this.errorMessage.set('Erro ao desarquivar o cartão')
     });
   }
 

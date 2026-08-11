@@ -51,7 +51,8 @@ public class RecurringMaterializationService {
 	@Transactional
 	public List<OccurrenceResponse> materializeForUserAndMonth(UUID userId, YearMonth month) {
 		recurringRepository.findAllByUserIdOrderByDescriptionAsc(userId).stream()
-				.filter(recurring -> recurring.occursIn(month))
+				// arquivado nunca materializa ocorrência nova, mesmo se ainda "occursIn" (sessão #42)
+				.filter(recurring -> !recurring.isArchived() && recurring.occursIn(month))
 				.forEach(recurring -> materializeOccurrence(recurring, month));
 		return occurrencesFor(userId, month);
 	}
@@ -77,7 +78,7 @@ public class RecurringMaterializationService {
 	@Transactional
 	public void materializeCurrentMonth() {
 		YearMonth month = YearMonth.now();
-		List<RecurringTransaction> active = recurringRepository.findAllByActiveTrue();
+		List<RecurringTransaction> active = recurringRepository.findAllByActiveTrueAndArchivedFalse();
 		log.info("Materializando {} fixos ativos para {}", active.size(), month);
 		active.stream()
 				.filter(recurring -> recurring.occursIn(month))

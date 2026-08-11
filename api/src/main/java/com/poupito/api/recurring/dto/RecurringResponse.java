@@ -27,7 +27,8 @@ public record RecurringResponse(
 		String categoryColor,
 		int dayOfMonth,
 		boolean active,
-		LocalDate endDate) {
+		LocalDate endDate,
+		boolean archived) {
 
 	public static RecurringResponse from(RecurringTransaction recurring, Account account, Card card,
 			Category category) {
@@ -47,7 +48,8 @@ public record RecurringResponse(
 				category != null ? category.getColor() : null,
 				recurring.getDayOfMonth(),
 				recurring.isActive(),
-				recurring.getEndDate());
+				recurring.getEndDate(),
+				recurring.isArchived());
 	}
 
 }

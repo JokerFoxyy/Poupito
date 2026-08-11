@@ -19,7 +19,7 @@
 | Backend | Java 21 + Spring Boot 3.5.x | Virtual threads; pacotes por feature (`transaction/`, `budget/`, `investment/`, `goal/`...) |
 | API | REST + OpenAPI (springdoc) | Contrato documentado para futuro app mobile |
 | Banco | PostgreSQL 16 (Docker Compose) | Dinheiro em `NUMERIC(14,2)` / `BigDecimal`; datas em `LocalDate` |
-| Migrations | Flyway | Desde a V1, hoje na V15 |
+| Migrations | Flyway | Desde a V1, hoje na V16 |
 | Auth | Spring Security + JWT próprio | Cookies httpOnly (ver `CLAUDE.md`) |
 | Frontend | **Angular 20 + TypeScript** (standalone components, signals) | Adaptação da spec (React → Angular) |
 | UI | Tailwind CSS + componentes próprios | Tema Poupito (claro padrão + dark), sessão #23 |
@@ -51,7 +51,7 @@ Poupito/                  (repo git)
                             + session-NN-*/SDD.md
 ```
 
-## 3. Modelo de dados (migrations Flyway, V1→V15 hoje)
+## 3. Modelo de dados (migrations Flyway, V1→V16 hoje)
 
 Histórico completo de cada migration em `docs/PLANO-HISTORICO.md` e nas seções
 correspondentes do `CLAUDE.md` (Domínio, Remodelagem Contas & Cartões, Auth &
@@ -78,28 +78,13 @@ Detalhe completo de cada regra (fatura, método de pagamento derivado, XOR conta
 
 **Fase 3 — Qualidade de vida:** #17 Alertas + Busca + Tags ✅ · #18 Parcelamentos ✅ · #19 Export CSV/xlsx ✅ · #20 PWA ✅ · #21 Deploy AWS ✅ (produção real rodando em `poupito.com`)
 
-**Fase 4 — Hardening & Open Finance (concluídas):** #23 Identidade visual ✅ · #24 Observabilidade + Hardening ✅ · #25 Remodelagem Contas & Cartões ✅ · #26 Bugfix estado de contas dessincronizado ✅ · #29 Recuperação de senha + endurecimento ✅ · #32 Fixos no cartão de crédito ✅ · #33 Refino visual (tokens/mobile/botões/fonte Manrope) ✅ · #34 Bugfix nome único conta/cartão ✅ · #40 Landing pública + FAQ ✅ (inclui complemento 2026-08-02: botão de cadastro, diferenciação visual login/cadastro, ajustes WebView mobile)
+**Fase 4 — Hardening & Open Finance (concluídas):** #23 Identidade visual ✅ · #24 Observabilidade + Hardening ✅ · #25 Remodelagem Contas & Cartões ✅ · #26 Bugfix estado de contas dessincronizado ✅ · #29 Recuperação de senha + endurecimento ✅ · #32 Fixos no cartão de crédito ✅ · #33 Refino visual (tokens/mobile/botões/fonte Manrope) ✅ · #34 Bugfix nome único conta/cartão ✅ · #40 Landing pública + FAQ ✅ (inclui complemento 2026-08-02: botão de cadastro, diferenciação visual login/cadastro, ajustes WebView mobile) · #42 Correção de bugs (arquivar cartão/fixo + vazamento entre usuários) ✅
 
 ## 6. Sessões planejadas / em andamento
 
-> **Ordem de execução atual (atualizada 2026-08-02): #42 → #27 → #30 → #39 → (#28/#37/#22 quando o usuário quiser).** Sessões que ainda precisam de mais conversa (#31/#35/#36/#38/#41/#43/#44) entram na fila quando refinadas com o usuário. Histórico completo de como a ordem foi mudando ao longo do projeto está em `docs/PLANO-HISTORICO.md`.
+> **Ordem de execução atual (atualizada 2026-08-10, #42 concluída): #27 → #30 → #39 → (#28/#37/#22 quando o usuário quiser).** Sessões que ainda precisam de mais conversa (#31/#35/#36/#38/#41/#43/#44) entram na fila quando refinadas com o usuário. Histórico completo de como a ordem foi mudando ao longo do projeto está em `docs/PLANO-HISTORICO.md`.
 
-**#42 — Correção de bugs reportados por usuários** 📋 PLANEJADA — **próxima sessão a rodar**, pronta pra virar SDD
-
-Motivação: feedback direto de usuários apontou dois problemas na Configurações/fluxo de conta.
-
-1. **Apagar cartões e fixos → vira arquivar** (decisão do usuário 2026-08-02, puxa pra frente o núcleo da #27 pra Card e RecurringTransaction): hoje excluir cartão/fixo com transação, fatura ou ocorrência vinculada retorna **409** (FK constraint, comportamento documentado desde a #25/#32). Em vez de só melhorar a mensagem de erro, a solução definitiva é **arquivar**: cartão/fixo some da tela principal e de qualquer seletor de novo lançamento ("Pagar com" em Transações/Fixos, mapeamento do Importer), mas as transações/ocorrências/faturas **já existentes continuam 100% visíveis no histórico** (Transações, Faturas, exports) — só não dá mais pra criar lançamento novo nele nem vê-lo fora do histórico.
-   - **Modelagem**: novo campo `archived` (boolean, default `false`) em `Card` e `RecurringTransaction` — **distinto** do `active` que `RecurringTransaction` já tem hoje (esse `active` só pausa/retoma a materialização mensal do job, sessão #8/#32; `archived` é sobre visibilidade/seleção, conceito novo). Migration aditiva, sem backfill.
-   - **Backend**: endpoint de arquivar/desarquivar em `/v1/cards/{id}` e `/v1/recurring/{id}`; `GET` de listagem por padrão retorna só não-arquivados; histórico (`GET /v1/transactions`, `/v1/invoices`, `/v1/recurring/{id}/occurrences`) **não filtra por archived**.
-   - **`DELETE` de verdade**: mantém o comportamento atual (409 se tiver vínculo) — arquivar é a ação oferecida no lugar. Exclusão em cascata explícita fica pra #27, que também cobre o caso de Conta.
-   - **Frontend**: `CardStore`/`RecurringService` filtram arquivados dos seletores "Pagar com"; painel de Cartões e tela de Fixos ganham ação "Arquivar"; badge "Arquivado" na listagem de Transações/Faturas.
-2. **Vazamento de dados entre contas ao trocar de usuário no mesmo navegador** (relatado: desloga e loga com outra conta, "Configurações" mostra dados da conta anterior) — **bug de segurança/privacidade, prioridade alta**. Causa-raiz identificada por inspeção de código: `AccountStore`/`CardStore`/`CategoryStore` (`web/src/app/core/state/*.store.ts`, sessão #26) são singletons `providedIn: 'root'` com uma flag `loaded` que **nunca é resetada**; `Shell.logout()` faz só `router.navigate(['/login'])` — **sem reload de página** — então nenhum singleton é recriado, e os stores continuam com os dados em memória do usuário anterior. Fix: método `reset()` em cada store, chamado a partir de `AuthService.clearSession()` (cobre logout explícito e falha de refresh). Task extra: auditar se há outro estado cacheado do mesmo jeito (ex. badge de alertas de orçamento no `Shell`).
-
-Tasks: (1) migration `archived` em `Card`/`RecurringTransaction` + endpoint arquivar/desarquivar + filtro nos GETs; (2) frontend — ação "Arquivar", filtro nos seletores, badge "Arquivado"; (3) `reset()` nos 3 stores + chamada em `AuthService.clearSession()`; (4) auditoria de outros caches órfãos; (5) testes (API ≥90%, web ≥90/80/90/90); (6) verificação e2e (arquivar cartão com fatura vinculada; logout→login trocando de usuário na mesma aba).
-
-Pré-req: nenhum (roda já, independe de deploy).
-
-**#27 — Arquivar contas (soft) + excluir com cascata explícito** 📋 PLANEJADA (refinamento pós-uso, decidido com o usuário 2026-07-23; **escopo reduzido em 2026-08-02** — arquivamento de Cartão e Fixo foi puxado pra frente e absorvido pela **#42**) — roda logo após a #42, na frente da #39
+**#27 — Arquivar contas (soft) + excluir com cascata explícito** 📋 PLANEJADA (refinamento pós-uso, decidido com o usuário 2026-07-23; **escopo reduzido em 2026-08-02** — arquivamento de Cartão e Fixo foi absorvido pela **#42** ✅) — **próxima sessão a rodar**
 
 Motivação: apagar conta com transações/faturas vinculadas hoje só bloqueia (409 por FK).
 Decisão (usuário): **arquivar/inativar é a ação principal** (some dos seletores de novo lançamento, mantém histórico visível); **excluir de vez em cascata** vira opção secundária, com confirmação forte mostrando a contagem exata.

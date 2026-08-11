@@ -9,7 +9,10 @@ describe('CardService', () => {
   let service: CardService;
   let httpMock: HttpTestingController;
 
-  const card: Card = { id: '1', name: 'Nubank', accountId: 'a1', accountName: 'Nubank Conta', closingDay: 28, dueDay: 7 };
+  const card: Card = {
+    id: '1', name: 'Nubank', accountId: 'a1', accountName: 'Nubank Conta', closingDay: 28, dueDay: 7,
+    archived: false
+  };
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -25,7 +28,7 @@ describe('CardService', () => {
     let result: Card[] = [];
     service.list().subscribe((cards) => (result = cards));
 
-    const request = httpMock.expectOne('/api/v1/cards');
+    const request = httpMock.expectOne((r) => r.url === '/api/v1/cards');
     expect(request.request.method).toBe('GET');
     request.flush([card]);
 
@@ -55,5 +58,29 @@ describe('CardService', () => {
     const request = httpMock.expectOne('/api/v1/cards/1');
     expect(request.request.method).toBe('DELETE');
     request.flush(null);
+  });
+
+  it('should list archived cards when requested (sessão #42)', () => {
+    service.list(true).subscribe();
+
+    const request = httpMock.expectOne((r) => r.url === '/api/v1/cards');
+    expect(request.request.params.get('archived')).toBe('true');
+    request.flush([{ ...card, archived: true }]);
+  });
+
+  it('should archive a card', () => {
+    service.archive('1').subscribe();
+
+    const request = httpMock.expectOne('/api/v1/cards/1/archive');
+    expect(request.request.method).toBe('PATCH');
+    request.flush({ ...card, archived: true });
+  });
+
+  it('should unarchive a card', () => {
+    service.unarchive('1').subscribe();
+
+    const request = httpMock.expectOne('/api/v1/cards/1/unarchive');
+    expect(request.request.method).toBe('PATCH');
+    request.flush(card);
   });
 });

@@ -36,8 +36,8 @@ public class RecurringService {
 	}
 
 	@Transactional(readOnly = true)
-	public List<RecurringResponse> list(UUID userId) {
-		return recurringRepository.findAllByUserIdOrderByDescriptionAsc(userId).stream()
+	public List<RecurringResponse> list(UUID userId, boolean archived) {
+		return recurringRepository.findAllByUserIdAndArchivedOrderByDescriptionAsc(userId, archived).stream()
 				.map(recurring -> toResponse(userId, recurring))
 				.toList();
 	}
@@ -65,6 +65,25 @@ public class RecurringService {
 	@Transactional
 	public void delete(UUID userId, UUID recurringId) {
 		recurringRepository.delete(findOwned(userId, recurringId));
+	}
+
+	/**
+	 * Some da tela principal e dos seletores "Pagar com" e para de materializar ocorrência nova,
+	 * mas o histórico (ocorrências/transações já lançadas) continua intacto — alternativa ao
+	 * delete quando há vínculo (sessão #42).
+	 */
+	@Transactional
+	public RecurringResponse archive(UUID userId, UUID recurringId) {
+		RecurringTransaction recurring = findOwned(userId, recurringId);
+		recurring.archive();
+		return toResponse(userId, recurring);
+	}
+
+	@Transactional
+	public RecurringResponse unarchive(UUID userId, UUID recurringId) {
+		RecurringTransaction recurring = findOwned(userId, recurringId);
+		recurring.unarchive();
+		return toResponse(userId, recurring);
 	}
 
 	private RecurringTransaction findOwned(UUID userId, UUID recurringId) {

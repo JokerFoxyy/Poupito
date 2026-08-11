@@ -161,10 +161,33 @@
           </td>
           <td class="row-actions">
             <button type="button" class="link" (click)="openEdit(recurring)">Editar</button>
+            <button type="button" class="link" (click)="archive(recurring)">Arquivar</button>
             <button type="button" class="link danger" (click)="remove(recurring)">Excluir</button>
           </td>
         </tr>
       }
     </table>
+  }
+
+  @if (archivedRecurrings().length > 0) {
+    <details class="archived-section">
+      <summary>Fixos arquivados ({{ archivedRecurrings().length }})</summary>
+      <table>
+        <tr>
+          <th>Fixo</th>
+          <th>Pago com</th>
+          <th></th>
+        </tr>
+        @for (recurring of archivedRecurrings(); track recurring.id) {
+          <tr>
+            <td data-label="Descrição">{{ recurring.description }}</td>
+            <td data-label="Pagar com">{{ recurring.cardName ?? recurring.accountName }}</td>
+            <td class="row-actions">
+              <button type="button" class="link" (click)="unarchive(recurring)">Desarquivar</button>
+            </td>
+          </tr>
+        }
+      </table>
+    </details>
   }
 </div>

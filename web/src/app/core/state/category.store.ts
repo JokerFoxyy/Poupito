@@ -29,6 +29,12 @@ export class CategoryStore {
     this.service.list().subscribe((categories) => this._categories.set(categories));
   }
 
+  /** Mesma correção do AccountStore.reset() — bug de vazamento entre usuários (sessão #42). */
+  reset(): void {
+    this._categories.set([]);
+    this.loaded = false;
+  }
+
   create(payload: CategoryPayload): Observable<Category> {
     return this.service.create(payload).pipe(tap(() => this.refresh()));
   }

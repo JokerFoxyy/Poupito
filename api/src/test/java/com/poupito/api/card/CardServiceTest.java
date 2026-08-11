@@ -145,13 +145,39 @@ class CardServiceTest {
 	void shouldListCardsWithAccountName() {
 		Account account = account();
 		Card card = new Card(userId, account.getId(), "Nubank", 28, 7);
-		when(cardRepository.findAllByUserIdOrderByNameAsc(userId)).thenReturn(List.of(card));
+		when(cardRepository.findAllByUserIdAndArchivedOrderByNameAsc(userId, false)).thenReturn(List.of(card));
 		when(accountRepository.findAllByUserIdOrderByNameAsc(userId)).thenReturn(List.of(account));
 
-		List<CardResponse> cards = cardService.list(userId);
+		List<CardResponse> cards = cardService.list(userId, false);
 
 		assertThat(cards).hasSize(1);
 		assertThat(cards.getFirst().accountName()).isEqualTo("Nubank Conta");
+	}
+
+	@Test
+	void shouldArchiveAndUnarchiveCard() {
+		Account account = account();
+		Card card = new Card(userId, account.getId(), "Nubank", 28, 7);
+		UUID cardId = UUID.randomUUID();
+		ReflectionTestUtils.setField(card, "id", cardId);
+		when(cardRepository.findByIdAndUserId(cardId, userId)).thenReturn(Optional.of(card));
+		when(accountRepository.findByIdAndUserId(account.getId(), userId)).thenReturn(Optional.of(account));
+
+		CardResponse archived = cardService.archive(userId, cardId);
+		assertThat(archived.archived()).isTrue();
+		assertThat(card.isArchived()).isTrue();
+
+		CardResponse unarchived = cardService.unarchive(userId, cardId);
+		assertThat(unarchived.archived()).isFalse();
+		assertThat(card.isArchived()).isFalse();
+	}
+
+	@Test
+	void shouldThrowNotFound_whenArchivingCardOfAnotherUser() {
+		UUID cardId = UUID.randomUUID();
+		when(cardRepository.findByIdAndUserId(cardId, userId)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> cardService.archive(userId, cardId)).isInstanceOf(NotFoundException.class);
 	}
 
 }

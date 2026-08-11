@@ -29,6 +29,12 @@ export class CardStore {
     this.service.list().subscribe((cards) => this._cards.set(cards));
   }
 
+  /** Mesma correção do AccountStore.reset() — bug de vazamento entre usuários (sessão #42). */
+  reset(): void {
+    this._cards.set([]);
+    this.loaded = false;
+  }
+
   create(payload: CardPayload): Observable<Card> {
     return this.service.create(payload).pipe(tap(() => this.refresh()));
   }

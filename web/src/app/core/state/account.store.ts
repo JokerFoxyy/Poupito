@@ -34,6 +34,16 @@ export class AccountStore {
     this.service.list().subscribe((accounts) => this._accounts.set(accounts));
   }
 
+  /**
+   * Chamado por `AuthService.clearSession()` no logout — sem isso, o próximo usuário a logar na
+   * mesma aba (sem reload de página) via `ensureLoaded()` encontraria `loaded=true` e nunca
+   * recarregaria, herdando os dados em memória do usuário anterior (bug de vazamento, sessão #42).
+   */
+  reset(): void {
+    this._accounts.set([]);
+    this.loaded = false;
+  }
+
   create(payload: AccountPayload): Observable<Account> {
     return this.service.create(payload).pipe(tap(() => this.refresh()));
   }
