@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -37,8 +38,9 @@ public class RecurringController {
 	}
 
 	@GetMapping
-	public List<RecurringResponse> list(@AuthenticationPrincipal AuthenticatedUser user) {
-		return recurringService.list(user.id());
+	public List<RecurringResponse> list(@AuthenticationPrincipal AuthenticatedUser user,
+			@RequestParam(defaultValue = "false") boolean archived) {
+		return recurringService.list(user.id(), archived);
 	}
 
 	@PostMapping
@@ -58,6 +60,16 @@ public class RecurringController {
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	public void delete(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID id) {
 		recurringService.delete(user.id(), id);
+	}
+
+	@PatchMapping("/{id}/archive")
+	public RecurringResponse archive(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID id) {
+		return recurringService.archive(user.id(), id);
+	}
+
+	@PatchMapping("/{id}/unarchive")
+	public RecurringResponse unarchive(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID id) {
+		return recurringService.unarchive(user.id(), id);
 	}
 
 	/** Ocorrências dos fixos ativos no mês (só leitura), sem materializar. */

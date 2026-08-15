@@ -93,6 +93,16 @@
   padding: 0;
   box-sizing: border-box;
   font-family: 'Manrope', 'Segoe UI', Roboto, system-ui, -apple-system, sans-serif;
+  /* Remove o flash cinza/azul padrão de toque do Android WebView — o app já
+     dá feedback próprio (:active scale, :hover, :focus-visible), sessão #33. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Fundo também no <html> (não só no <body>): em WebView/iOS o "rubber-band"
+   do overscroll pode expor um instante o que está atrás do body — sem isso
+   aparece um flash branco/preto fora do tema ao puxar além do topo/fim. */
+html {
+  background: var(--bg);
 }
 
 body {
@@ -424,6 +434,23 @@ td {
   font-size: 12px;
   line-height: 1.5;
   margin-bottom: 12px;
+}
+
+/* Seção discreta de itens arquivados (Cartões/Fixos, sessão #42) — colapsada por padrão,
+   só some visível se o usuário abrir; some inteira se não houver nenhum item arquivado. */
+.archived-section {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+.archived-section summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.archived-section table {
+  margin-top: var(--space-3);
 }
 
 /* Ações de linha (Editar/Excluir) — sessão #33.

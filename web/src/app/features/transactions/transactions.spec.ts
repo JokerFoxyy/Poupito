@@ -20,7 +20,7 @@ describe('Transactions', () => {
     { id: 'a2', name: 'Carteira', type: 'CASH' }
   ];
   const cards: Card[] = [
-    { id: 'k1', name: 'Nubank', accountId: 'a1', accountName: 'Uniclass', closingDay: 28, dueDay: 7 }
+    { id: 'k1', name: 'Nubank', accountId: 'a1', accountName: 'Uniclass', closingDay: 28, dueDay: 7, archived: false }
   ];
   const categories: Category[] = [
     { id: 'c1', name: 'Mercado', icon: '🛒', color: '#3fb950', kind: 'EXPENSE' },

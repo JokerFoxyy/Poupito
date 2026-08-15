@@ -1,0 +1,40 @@
+<div class="landing">
+  <header class="landing-header">
+    <div class="logo">Poup<span>ito</span></div>
+    <nav>
+      <a routerLink="/faq" class="link">Dúvidas</a>
+      <a routerLink="/login" class="btn-ghost">Entrar</a>
+    </nav>
+  </header>
+
+  <section class="hero">
+    <h1>Descomplique. Poupe. <span class="accent">Poupito.</span></h1>
+    <p class="lead">
+      Chega de planilha quebrando fórmula. Poupito é onde suas transações, contas,
+      cartões, fixos, orçamentos e investimentos vivem num só lugar — de graça pra você
+      organizar sua vida financeira.
+    </p>
+    <div class="cta-row">
+      <a routerLink="/login" [queryParams]="{ mode: 'register' }" class="btn btn-lg">Criar conta grátis</a>
+      <a routerLink="/faq" class="btn-ghost btn-lg">Como funciona?</a>
+    </div>
+  </section>
+
+  <section class="features">
+    <h2>O que dá pra fazer</h2>
+    <div class="feature-grid">
+      @for (feature of features; track feature.title) {
+        <div class="feature-card">
+          <div class="feature-icon">{{ feature.icon }}</div>
+          <h3>{{ feature.title }}</h3>
+          <p>{{ feature.description }}</p>
+        </div>
+      }
+    </div>
+  </section>
+
+  <footer class="landing-footer">
+    <span>© {{ currentYear }} Poupito</span>
+    <a routerLink="/faq">Perguntas frequentes</a>
+  </footer>
+</div>

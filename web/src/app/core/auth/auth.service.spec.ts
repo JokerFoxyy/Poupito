@@ -2,6 +2,9 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 
+import { AccountStore } from '../state/account.store';
+import { CardStore } from '../state/card.store';
+import { CategoryStore } from '../state/category.store';
 import { AuthService } from './auth.service';
 import { UserResponse } from './auth.models';
 
@@ -88,6 +91,21 @@ describe('AuthService', () => {
 
     expect(service.isAuthenticated()).toBeFalse();
     expect(localStorage.getItem(AUTH_FLAG)).toBeNull();
+  });
+
+  it('should reset the account/card/category stores on clearSession, so the next login on the same tab does not inherit stale data (sessão #42)', () => {
+    const accountStore = TestBed.inject(AccountStore);
+    const cardStore = TestBed.inject(CardStore);
+    const categoryStore = TestBed.inject(CategoryStore);
+    spyOn(accountStore, 'reset');
+    spyOn(cardStore, 'reset');
+    spyOn(categoryStore, 'reset');
+
+    service.clearSession();
+
+    expect(accountStore.reset).toHaveBeenCalled();
+    expect(cardStore.reset).toHaveBeenCalled();
+    expect(categoryStore.reset).toHaveBeenCalled();
   });
 
   it('should post the email to forgot-password without authenticating', () => {

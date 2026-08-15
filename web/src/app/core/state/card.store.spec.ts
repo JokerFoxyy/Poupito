@@ -9,7 +9,9 @@ describe('CardStore', () => {
   let store: CardStore;
   let service: jasmine.SpyObj<CardService>;
 
-  const nubank: Card = { id: '1', name: 'Nubank', accountId: 'a1', accountName: 'Conta', closingDay: 28, dueDay: 7 };
+  const nubank: Card = {
+    id: '1', name: 'Nubank', accountId: 'a1', accountName: 'Conta', closingDay: 28, dueDay: 7, archived: false
+  };
 
   beforeEach(() => {
     service = jasmine.createSpyObj<CardService>('CardService', ['list', 'create', 'update', 'delete']);
@@ -51,5 +53,16 @@ describe('CardStore', () => {
     service.list.and.returnValue(of([]));
     store.delete('1').subscribe();
     expect(store.cards()).toEqual([]);
+  });
+
+  it('should clear the signal and force a re-fetch on next ensureLoaded after reset (sessão #42)', () => {
+    store.ensureLoaded();
+    expect(store.cards()).toEqual([nubank]);
+
+    store.reset();
+
+    expect(store.cards()).toEqual([]);
+    store.ensureLoaded();
+    expect(service.list).toHaveBeenCalledTimes(2);
   });
 });

@@ -16,7 +16,7 @@ describe('Recurring', () => {
 
   const accounts: Account[] = [{ id: 'a1', name: 'Uniclass', type: 'CHECKING' }];
   const cards: Card[] = [
-    { id: 'k1', name: 'Nubank', accountId: 'a1', accountName: 'Uniclass', closingDay: 3, dueDay: 10 }
+    { id: 'k1', name: 'Nubank', accountId: 'a1', accountName: 'Uniclass', closingDay: 3, dueDay: 10, archived: false }
   ];
   const categories: Category[] = [
     { id: 'c1', name: 'Assinaturas', icon: '🔁', color: '#a371f7', kind: 'EXPENSE' },
@@ -26,13 +26,13 @@ describe('Recurring', () => {
     id: 'r1', description: 'Spotify', amount: 27.9, type: 'EXPENSE', accountId: 'a1', accountName: 'Uniclass',
     cardId: null, cardName: null, method: 'DEBITO',
     categoryId: 'c1', categoryName: 'Assinaturas', categoryIcon: '🔁', categoryColor: '#a371f7',
-    dayOfMonth: 10, active: true, endDate: null
+    dayOfMonth: 10, active: true, endDate: null, archived: false
   };
   const netflix: RecurringModel = {
     id: 'r2', description: 'Netflix', amount: 55.9, type: 'EXPENSE', accountId: null, accountName: null,
     cardId: 'k1', cardName: 'Nubank', method: 'CREDITO',
     categoryId: 'c1', categoryName: 'Assinaturas', categoryIcon: '🔁', categoryColor: '#a371f7',
-    dayOfMonth: 10, active: true, endDate: null
+    dayOfMonth: 10, active: true, endDate: null, archived: false
   };
   const occurrence: Occurrence = {
     recurringId: 'r1', description: 'Spotify', amount: 27.9, type: 'EXPENSE', accountName: 'Uniclass',
@@ -43,8 +43,8 @@ describe('Recurring', () => {
 
   beforeEach(async () => {
     recurringService = jasmine.createSpyObj<RecurringService>('RecurringService',
-      ['list', 'create', 'update', 'delete', 'occurrences', 'materialize', 'setPaid']);
-    recurringService.list.and.returnValue(of([spotify]));
+      ['list', 'create', 'update', 'delete', 'occurrences', 'materialize', 'setPaid', 'archive', 'unarchive']);
+    recurringService.list.and.callFake((archived?: boolean) => of(archived ? [] : [spotify]));
     recurringService.occurrences.and.returnValue(of([occurrence]));
     const accountService = jasmine.createSpyObj<AccountService>('AccountService', ['list']);
     accountService.list.and.returnValue(of(accounts));
@@ -148,11 +148,49 @@ describe('Recurring', () => {
 
   it('should delete the recurring and reload', () => {
     recurringService.delete.and.returnValue(of(void 0));
+    const callsBeforeDelete = recurringService.list.calls.count();
 
     component.remove(spotify);
 
     expect(recurringService.delete).toHaveBeenCalledWith('r1');
-    expect(recurringService.list).toHaveBeenCalledTimes(2);
+    expect(recurringService.list.calls.count()).toBe(callsBeforeDelete + 1);
+  });
+
+  it('should archive a recurring and reload both lists', () => {
+    recurringService.archive.and.returnValue(of({ ...spotify, archived: true }));
+
+    component.archive(spotify);
+
+    expect(recurringService.archive).toHaveBeenCalledWith('r1');
+    expect(recurringService.list).toHaveBeenCalledWith(true);
+  });
+
+  it('should unarchive a recurring and reload both lists', () => {
+    recurringService.unarchive.and.returnValue(of(spotify));
+
+    component.unarchive(spotify);
+
+    expect(recurringService.unarchive).toHaveBeenCalledWith('r1');
+    expect(recurringService.list).toHaveBeenCalledWith(true);
+  });
+
+  it('should show an error when archiving fails', () => {
+    recurringService.archive.and.returnValue(throwError(() => new Error('500')));
+
+    component.archive(spotify);
+
+    expect(component.errorMessage()).toBe('Erro ao arquivar o fixo');
+  });
+
+  it('should render archived recurrings in a separate section', () => {
+    recurringService.list.and.callFake((archived?: boolean) =>
+      of(archived ? [{ ...spotify, id: 'r9', description: 'Academia Antiga', archived: true }] : [spotify]));
+
+    component.ngOnInit();
+    fixture.detectChanges();
+
+    expect(component.archivedRecurrings()).toEqual([jasmine.objectContaining({ description: 'Academia Antiga' })]);
+    expect(fixture.nativeElement.textContent).toContain('Academia Antiga');
   });
 
   it('should reload occurrences when the month changes', () => {

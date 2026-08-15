@@ -41,6 +41,10 @@ public class Card {
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
 
+	/** Arquivado some da tela principal e dos seletores "Pagar com", mas o histórico é preservado (sessão #42). */
+	@Column(nullable = false)
+	private boolean archived = false;
+
 	protected Card() {
 	}
 
@@ -64,6 +68,14 @@ public class Card {
 		this.name = name;
 		this.closingDay = closingDay;
 		this.dueDay = dueDay;
+	}
+
+	public void archive() {
+		this.archived = true;
+	}
+
+	public void unarchive() {
+		this.archived = false;
 	}
 
 	public UUID getId() {
@@ -92,6 +104,10 @@ public class Card {
 
 	public Instant getCreatedAt() {
 		return createdAt;
+	}
+
+	public boolean isArchived() {
+		return archived;
 	}
 
 }

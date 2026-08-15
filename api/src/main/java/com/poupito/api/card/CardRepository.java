@@ -11,6 +11,8 @@ public interface CardRepository extends JpaRepository<Card, UUID> {
 
 	List<Card> findAllByUserIdOrderByNameAsc(UUID userId);
 
+	List<Card> findAllByUserIdAndArchivedOrderByNameAsc(UUID userId, boolean archived);
+
 	Optional<Card> findByIdAndUserId(UUID id, UUID userId);
 
 	List<Card> findAllByUserId(UUID userId);

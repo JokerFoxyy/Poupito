@@ -26,7 +26,7 @@ describe('RecurringService', () => {
 
   it('should list recurring transactions', () => {
     service.list().subscribe();
-    const req = httpMock.expectOne('/api/v1/recurring');
+    const req = httpMock.expectOne((r) => r.url === '/api/v1/recurring');
     expect(req.request.method).toBe('GET');
     req.flush([]);
   });
@@ -72,6 +72,27 @@ describe('RecurringService', () => {
     const req = httpMock.expectOne('/api/v1/transactions/t1/paid');
     expect(req.request.method).toBe('PUT');
     expect(req.request.body).toEqual({ paid: true });
+    req.flush({});
+  });
+
+  it('should list archived recurrings when requested (sessão #42)', () => {
+    service.list(true).subscribe();
+    const req = httpMock.expectOne((r) => r.url === '/api/v1/recurring');
+    expect(req.request.params.get('archived')).toBe('true');
+    req.flush([]);
+  });
+
+  it('should archive a recurring', () => {
+    service.archive('r1').subscribe();
+    const req = httpMock.expectOne('/api/v1/recurring/r1/archive');
+    expect(req.request.method).toBe('PATCH');
+    req.flush({});
+  });
+
+  it('should unarchive a recurring', () => {
+    service.unarchive('r1').subscribe();
+    const req = httpMock.expectOne('/api/v1/recurring/r1/unarchive');
+    expect(req.request.method).toBe('PATCH');
     req.flush({});
   });
 });

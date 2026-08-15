@@ -78,6 +78,8 @@ npm run build:prod
 
 **Gotcha de JDK:** o `java` default da máquina é 19; o projeto exige 21. Antes de qualquer comando Maven: `$env:JAVA_HOME = "C:\Program Files\Java\jdk-21"` (PowerShell). Os testes de integração usam Testcontainers — Docker Desktop precisa estar de pé, senão o contexto falha com "find a Docker environment failed".
 
+**Usuário de teste local (dev, criado 2026-08-09):** pra verificar telas autenticadas no browser sem precisar registrar uma conta na mão toda vez — `teste.dev@poupito.local` / `PoupitoDev#2026` (atende a política de senha forte). Já tem 1 conta ("Conta Teste", CHECKING) e 1 categoria ("Alimentacao", EXPENSE) cadastradas, pra telas que exigem isso pra habilitar ações (ex. "Nova transação"). Vive no volume `pgdata` do Postgres local (`docker compose -f infra/docker-compose.yml up -d`) — sobrevive a `down`/`up`, só some se o volume for removido (`down -v`) ou o banco for resetado. **Só existe no ambiente local — nunca usar em produção.**
+
 **URLs (context-path `/api`):** health em `http://localhost:8080/api/actuator/health`, Swagger em `http://localhost:8080/api/swagger-ui.html`. Endpoints: `/api/v1/...` (controllers usam `@RequestMapping("/v1/...")`; o prefixo vem de `server.servlet.context-path`).
 
 ## Qualidade — regras obrigatórias
@@ -90,19 +92,50 @@ npm run build:prod
 
 ## Frontend (sessão #3)
 
-Angular 20 standalone + signals + `inject()`; Tailwind v4 via `@tailwindcss/postcss` (`.postcssrc.json`); tema em `src/styles.css` (variáveis CSS `:root`/`[data-theme="dark"]` + classes `.panel`, `.card`, `.btn`, `.tag`...). `ThemeService` (`core/theme/`) controla claro/escuro (signal + localStorage `poupito.theme`; script inline no `index.html` aplica antes do boot pra evitar flash); gráficos Chart.js leem as cores do tema via `core/theme/chart-theme.ts`. Estrutura: `core/auth` (AuthService com signals, interceptor funcional, `authGuard`), `core/layout/shell` (sidebar), `core/state/` (stores reativos de dados de referência — ver abaixo), `features/<nome>` (uma pasta por página, lazy via `loadComponent`), `shared/`. **Dados de referência compartilhados entre telas (contas, cartões, categorias) vivem em stores signal-based (`core/state/{account,card,category}.store.ts`, sessão #26), nunca carregados isoladamente no `ngOnInit` de cada componente:** cada store expõe um signal readonly como fonte única, `ensureLoaded()` (idempotente) no `ngOnInit` dos consumidores, e `create/update/delete` que delegam ao service e dão `refresh()` no sucesso — assim uma mutação em Configurações propaga na hora pros dropdowns de Transações/Faturas/Import/Fixos/Orçamentos sem reload (antes ficavam com listas fantasma e davam 404 ao salvar). Componente que ainda precise dos services diretos deve preferir o store. API sempre por caminho relativo `/api/...` — em dev o `proxy.conf.json` encaminha para `localhost:8080` (não usar URL absoluta nem CORS). Token JWT em `localStorage` (`poupito.token`).
+Angular 20 standalone + signals + `inject()`; Tailwind v4 via `@tailwindcss/postcss` (`.postcssrc.json`); tema em `src/styles.css` (variáveis CSS `:root`/`[data-theme="dark"]` + classes `.panel`, `.card`, `.btn`, `.tag`...). `ThemeService` (`core/theme/`) controla claro/escuro (signal + localStorage `poupito.theme`; script inline no `index.html` aplica antes do boot pra evitar flash); gráficos Chart.js leem as cores do tema via `core/theme/chart-theme.ts`. Estrutura: `core/auth` (AuthService com signals, interceptor funcional, `authGuard`), `core/layout/shell` (sidebar), `core/state/` (stores reativos de dados de referência — ver abaixo), `features/<nome>` (uma pasta por página, lazy via `loadComponent`), `shared/`. **Dados de referência compartilhados entre telas (contas, cartões, categorias) vivem em stores signal-based (`core/state/{account,card,category}.store.ts`, sessão #26), nunca carregados isoladamente no `ngOnInit` de cada componente:** cada store expõe um signal readonly como fonte única, `ensureLoaded()` (idempotente) no `ngOnInit` dos consumidores, e `create/update/delete` que delegam ao service e dão `refresh()` no sucesso — assim uma mutação em Configurações propaga na hora pros dropdowns de Transações/Faturas/Import/Fixos/Orçamentos sem reload (antes ficavam com listas fantasma e davam 404 ao salvar). Componente que ainda precise dos services diretos deve preferir o store. **`reset()`** em cada store (sessão #42) zera o signal e a flag `loaded`, chamado por `AuthService.clearSession()` — sem isso, trocar de usuário na mesma aba (sem reload de página) herdava os dados em memória do usuário anterior, já que `ensureLoaded()` nunca refazia o fetch. API sempre por caminho relativo `/api/...` — em dev o `proxy.conf.json` encaminha para `localhost:8080` (não usar URL absoluta nem CORS). Token JWT em `localStorage` (`poupito.token`).
 
 **Gotcha do Karma:** o `karma.conf.js` referenciado pelo builder `@angular/build:karma` **substitui** a config default em vez de mesclar — se recriar, use `ng generate config karma` e edite (senão os testes quebram com "describe is not defined"). Os thresholds de cobertura (90/80/90/90) vivem no `coverageReporter.check` desse arquivo.
 
+## Landing pública + FAQ (sessão #40)
+
+- **Roteamento** (`app.routes.ts`): `Landing` (`features/landing/`, rota `/`) entra como a
+  **primeira** rota do array, com `path: '', pathMatch: 'full'` — essencial, porque path
+  vazio **sem** ele faz *prefix match* (é assim que o `Shell` sempre funcionou, delegando
+  pros filhos `dashboard`/`transacoes`/etc.); com `full`, Landing só intercepta a barra `/`
+  exata. Isso permite Landing e `Shell` coexistirem (ambos usam `path: ''`) **sem mudar
+  nenhum path autenticado existente**.
+- **`redirectIfAuthenticatedGuard`** (`core/auth/`, espelha o `authGuard`): na rota da
+  Landing, se já autenticado manda pro `/dashboard` direto.
+- **`Faq`** (`features/faq/`, rota `/faq`, pública, sem guard): `<details>`/`<summary>`
+  nativos (acordeão sem JS de estado).
+- Botão "Criar conta grátis" (Landing/FAQ) leva direto pro modo cadastro via
+  `routerLink="/login" [queryParams]="{ mode: 'register' }"`; `Login` lê o query param no
+  construtor e chama `setMode('register')` antes do primeiro render.
+- **Diferenciação visual login vs. cadastro** (`login.css`): modo cadastro usa `--purple`
+  (token já existente na paleta, não é cor nova) como accent local via custom property
+  `--mode-accent`/`--mode-accent-strong` escopada em `.login-page.register-mode` — borda
+  superior do card, logo, botão de submit e foco dos campos ficam roxos em vez de verdes,
+  sinalizando "tela diferente" sem duplicar CSS. Logo do Poupito na tela de login virou
+  link (`routerLink="/"`) de volta pra landing.
+- **Ajustes WebView mobile** (`index.html`, `styles.css`, `landing.css`): viewport ganhou
+  `viewport-fit=cover`; `<html>` também herda `--bg` do tema (evita flash no overscroll
+  elástico); `-webkit-tap-highlight-color: transparent` global (feedback de toque já vem
+  de `:active`/`:hover`/`:focus-visible`); header/footer da landing usam
+  `env(safe-area-inset-*)`; grid de features blindado contra overflow em telas <240px
+  (`minmax(min(240px, 100%), 1fr)`).
+- Testes: 9 novos specs (Landing, Faq, guard), 304/304 Karma. Racional completo da decisão
+  de roteamento em `docs/PLANO-HISTORICO.md` (sessão #40).
+
 ## Refino visual: tokens, mobile e botões (sessão #33)
 
-- **Tokens de design** em `styles.css` (`:root`): `--text-xs`...`--text-2xl` (escala tipográfica com hierarquia real — antes tudo vivia entre 11-15px e saltava pra 24 sem meio-termo; agora o valor financeiro principal usa `--text-2xl`/`.card .value.hero`), `--radius-sm`/`--radius-md`/`--radius-pill` (3 raios com propósito, substituindo os 6 valores soltos que existiam), `--space-1`...`--space-6` (ritmo de 4px) e `--transition-fast` (150ms, usado em toda micro-interação). **Todo valor novo usa token, nunca número solto.**
-- **Ícones do shell**: `☰`/`☀️`/`🌙` viraram SVG inline (`currentColor`, mesmo padrão do olho de senha da #29) em `core/layout/shell.html` — acompanham a cor do tema e não têm mais inconsistência de renderização entre SOs.
-- **Bugfix: `.row-actions`** (`styles.css`) não usa mais `display: flex` direto no `<td>` — isso sobrescrevia o `display: table-cell` nativo e quebrava o `vertical-align`, desalinhando a coluna de ações (Editar/Excluir) do resto da linha. Agora é `text-align: right` + `margin-left` nos filhos, e o `td` volta a ser célula de tabela de verdade. Também tinha uma cópia duplicada em `transactions.css` com o mesmo bug — removida (a global em `styles.css` já cobre).
-- **Mobile: tabelas viram cards empilhados** abaixo de 640px (`@media` em `styles.css`) — decisão do usuário (2026-08-01, escolhida sobre scroll horizontal + coluna sticky). Cada `<td>` precisa de `data-label="Nome da coluna"` (vira o rótulo à esquerda no card via `::before`/`content: attr(data-label)`); o `<tr>` de cabeçalho (`tr:has(th)`) some no modo card. Aplicado nas 8 telas com tabela: `transactions`, `recurring`, `budgets`, `investments` (2 tabelas), `accounts-panel`, `cards-panel`, `categories-panel`. `goals` não precisou (já é layout de card, não `<table>`).
-- **Botões/links**: `transition` em background/transform/box-shadow/border-color (150ms), `:active` com leve `scale(.97)` (feedback de clique), sombra sutil no `.btn` primário no hover, `:focus-visible` desenhado (outline consistente, some no dark com o outline default do browser). Classe utilitária `.btn.loading` (spinner via `::after`, esconde o texto) pronta pra usar em botões de submit — **wiring nos componentes (`[class.loading]="submitting()"`) ainda não foi feito, fica pra when algum formulário precisar**. Tudo respeita `prefers-reduced-motion: reduce` (desliga as transições/animação do spinner).
-- **Mais animações + polimento visual** (pedido do usuário 2026-08-01, mesma sessão): `.card`/`.panel` ganham leve elevação (`box-shadow`) no hover; **modais** (`.modal-backdrop`/`.modal`, repetido em transactions/investments/goals/budgets) têm entrada suave (fade do backdrop + scale-up do conteúdo, `@keyframes` em `styles.css`, global — antes apareciam instantâneos); **barra de progresso** (`.bar`, orçamentos/metas) anima a largura em vez de "pular" pro valor final; item de menu lateral (`.nav-item`) ganhou `transition` no hover (antes trocava de cor sem transição, único elemento do shell que tinha ficado de fora). Emoji 🎯 das Metas (`goals.html`) → SVG (mesmo padrão do shell) — era a última inconsistência de ícone-emoji fora do menu/toggle de tema. Tudo dentro do `@media (prefers-reduced-motion: reduce)` já existente.
-- **Troca de fonte: Inter → Manrope** (decisão do usuário 2026-08-01, entre 3 opções apresentadas — Manrope/Plus Jakarta Sans/IBM Plex Sans): self-hosted (não Google Fonts CDN em runtime). Arquivo **variável** (`web/public/fonts/manrope-variable.woff2`, um único arquivo cobre pesos 400–800, subset `latin` — cobre acentuação pt-BR porque á/é/í/ó/ú/ã/õ/ç estão todos em U+0000-00FF) declarado via `@font-face` em `styles.css` (`font-weight: 400 800`, `font-display: swap`). **Gotcha do path**: o build (`@angular/build:application`, esbuild) resolve `url()` relativo em CSS como módulo a bundlar, não como URL de runtime — arquivo em `public/` (copiado pra raiz do output, não bundlado) só resolve com caminho **absoluto** (`/fonts/manrope-variable.woff2`), não relativo (`fonts/...` ou `assets/fonts/...` dão erro "Could not resolve" no build). `.card .value`/`.amount-col` ganham `font-variant-numeric: tabular-nums` (dígitos de largura fixa, alinham em coluna — combina bem com fonte geométrica).
+- **Tokens de design** em `styles.css` (`:root`): `--text-xs`...`--text-2xl` (escala tipográfica), `--radius-sm`/`--radius-md`/`--radius-pill`, `--space-1`...`--space-6` (ritmo de 4px) e `--transition-fast` (150ms). **Todo valor novo usa token, nunca número solto.**
+- **Ícones do shell**: `☰`/`☀️`/`🌙` viraram SVG inline (`currentColor`, mesmo padrão do olho de senha da #29) em `core/layout/shell.html`.
+- **`.row-actions`** (`styles.css`) não usa `display: flex` direto no `<td>` (sobrescreveria o `display: table-cell` nativo e quebraria `vertical-align`) — o flex fica numa `<div>` interna.
+- **Mobile: tabelas viram cards empilhados** abaixo de 640px (`@media` em `styles.css`, decisão do usuário sobre scroll horizontal + sticky). **Todo `<td>` novo em tabela precisa de `data-label="Nome da coluna"`** (vira rótulo via `::before`/`content: attr(data-label)`); `<tr>` de cabeçalho (`tr:has(th)`) some no modo card. Aplicado em `transactions`, `recurring`, `budgets`, `investments` (2 tabelas), `accounts-panel`, `cards-panel`, `categories-panel`. `goals` não precisou (já é card, não `<table>`).
+- **Botões/links**: `transition` em background/transform/box-shadow/border-color (150ms), `:active` com `scale(.97)`, sombra no hover do `.btn` primário, `:focus-visible` desenhado. Classe `.btn.loading` (spinner via `::after`) pronta pra usar — **wiring `[class.loading]="submitting()"` por componente ainda não feito**. Tudo respeita `prefers-reduced-motion: reduce`.
+- **Animações adicionais**: elevação no hover de `.card`/`.panel`; modais com fade+scale (`@keyframes` global); barra de progresso anima largura; `.nav-item` do menu com transição no hover. Emoji 🎯 das Metas → SVG.
+- **Fonte Manrope** (troca de Inter, self-hosted, não Google Fonts CDN): arquivo **variável** (`web/public/fonts/manrope-variable.woff2`, cobre pesos 400–800, subset `latin` cobre acentuação pt-BR) via `@font-face` em `styles.css`. **Gotcha do path**: esbuild resolve `url()` relativo em CSS como módulo a bundlar — arquivo em `public/` só resolve com caminho **absoluto** (`/fonts/manrope-variable.woff2`); relativo dá erro "Could not resolve" no build. `.card .value`/`.amount-col` ganham `font-variant-numeric: tabular-nums`.
+- Racional completo (auditoria de CSS, bugs de alinhamento/mobile, decisões do usuário) em `docs/PLANO-HISTORICO.md`, sessão #33.
 
 ## Domínio (sessões #5–#6) — parcialmente superado pela #25
 
@@ -222,7 +255,56 @@ Fecha a pendência da #25 ("fixo em cartão = melhoria futura"): antes, `recurri
 - `RecurringResponse`/`OccurrenceResponse` ganham `cardId`/`cardName` + **`method`** derivado. `PaymentMethod.of(UUID cardId, AccountType)` é o overload novo que serve fixos e transações sem duplicar a regra.
 - **Frontend** (`features/recurring/`): seletor **"Pagar com"** com `<optgroup>` Contas + Cartões (valores `account:<id>`/`card:<id>`, padrão da #25), cartões escondidos quando o tipo é Entrada (e o target volta pra conta ao trocar); consome o `CardStore`; **badge de método** na listagem; a coluna "Pago no mês" mostra **"na fatura"** (sem checkbox) para fixo em cartão.
 - `.method-badge`/`.method-credito|debito|dinheiro` foram promovidos de `transactions.css` para o **`styles.css` global** (agora compartilhados com Fixos).
-- Excluir cartão com fixo vinculado → **409** pelo FK (mesmo comportamento de transações vinculadas; a #27 vai melhorar isso com "arquivar").
+- Excluir cartão com fixo vinculado → **409** pelo FK (mesmo comportamento de transações vinculadas; a #42 resolve isso com "arquivar", ver seção própria abaixo).
+
+## Correção de bugs: arquivar cartão/fixo + vazamento entre usuários (sessão #42)
+
+Dois bugs reportados por usuários, sem relação entre si além de estarem na mesma sessão.
+
+**Arquivar Cartão/Fixo** (alternativa ao 409 de sempre ao excluir item vinculado, #25/#32):
+- Migration **V16** (`archived` boolean, default `false`, aditiva) em `cards` e
+  `recurring_transactions`. **Distinto de `RecurringTransaction.active`** (#8/#32, que só
+  pausa/retoma a materialização mensal mas mantém o fixo visível): `archived` esconde da tela
+  principal e de todo seletor "Pagar com"; fixo arquivado **nunca materializa**, mesmo com
+  `active=true` (checado no filtro de `RecurringMaterializationService.materializeForUserAndMonth`/
+  `materializeCurrentMonth`, não em `RecurringTransaction.occursIn()` — esse método
+  propositalmente não olha `archived`, porque também é usado pra exibir ocorrência **já
+  materializada antes** de um fixo ser arquivado, e o histórico não pode sumir).
+- `GET /v1/cards` e `GET /v1/recurring` ganham `?archived=` (default `false`) — `CardStore`/
+  `RecurringService` (frontend) continuam chamando sem parâmetro, então cartão/fixo arquivado
+  já some sozinho de todo seletor "Pagar com" (Transações, Fixos, Importer) sem tocar nesses
+  componentes. `PATCH /v1/cards/{id}/archive`+`/unarchive` e o par equivalente em `/v1/recurring`
+  (endpoints dedicados, mesmo padrão de `POST /v1/invoices/{id}/pay`).
+- **Histórico nunca filtra por archived**: `GET /v1/transactions`, `/v1/invoices`,
+  `/v1/recurring/occurrences` continuam devolvendo tudo — nome do cartão/fixo arquivado ainda
+  aparece via `cardName`/`accountName` já existentes nas responses.
+- **`DELETE` continua idêntico** (409 se houver vínculo) — arquivar é oferecido como
+  alternativa, não substitui a exclusão em cascata (essa fica pra **#27**, escopo reduzido pra
+  só Account depois que Card/Recurring ganharam isso aqui).
+- Frontend: `cards-panel`/`recurring` ganham ação **"Arquivar"** por linha (sempre visível, não
+  só depois de um 409 — mais descobrível) e uma seção **"Arquivados"** (`<details>`, classe
+  `.archived-section` em `styles.css` global) buscada à parte via `service.list(true)` — **não**
+  entra no store compartilhado, já que só a tela de gestão precisa ver item arquivado.
+
+**Vazamento de dados entre usuários no mesmo navegador** (logout→login trocando de conta,
+Configurações mostrava dados do usuário anterior): `AccountStore`/`CardStore`/`CategoryStore`
+(`core/state/`, singletons `providedIn: 'root'`) tinham uma flag `loaded` que **nunca era
+resetada** — `Shell.logout()` só faz `router.navigate(['/login'])`, **sem reload de página**,
+então nenhum singleton Angular é recriado, e `ensureLoaded()` (idempotente de propósito) nunca
+refazia o fetch pro próximo usuário. Fix: `reset()` em cada store (zera o signal de dados + a
+flag `loaded`), chamado por `AuthService.clearSession()` — único ponto que cobre tanto o logout
+explícito quanto a falha silenciosa do refresh de token. Auditoria confirmou que os outros 12
+serviços `providedIn: 'root'` do frontend são wrappers HTTP sem estado (nada a vazar);
+`ThemeService` tem signal mas é intencionalmente por dispositivo, não por usuário (não deve
+resetar); `Shell.budgetAlertCount` (#17) é signal de **componente**, destruído no logout junto
+com o `Shell` — não é um leak.
+
+**Gotcha da verificação e2e**: um processo Java do backend rodando desde uma sessão anterior
+(iniciado antes destas mudanças) sobreviveu a vários `docker compose down`/`up` do Postgres e
+ficou ocupando a porta 8080 com código **antigo** — `mvnw spring-boot:run` novo aplicava a
+migration mas não conseguia assumir a porta, mascarando o comportamento real (parecia que o
+filtro `archived` não funcionava). Sempre confirmar com `jps -l` que não há um `ApiApplication`
+zumbi antes de rodar verificação manual depois de uma pausa longa.
 
 ## PWA (sessão #20)
 

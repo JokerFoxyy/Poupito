@@ -1,22 +1,47 @@
 .login-page {
+  --mode-accent: var(--accent);
+  --mode-accent-strong: var(--accent-strong);
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 16px;
+  background: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--mode-accent) 8%, transparent), transparent 60%);
+  transition: background var(--transition-fast);
+}
+
+/* Modo cadastro usa o roxo já existente na paleta (--purple) como
+   accent local, pra sinalizar visualmente "tela diferente" do login
+   sem introduzir cor nova fora do sistema de tokens (pedido do usuário
+   2026-08-01: não parecer a mesma tela ao trocar de login p/ cadastro). */
+.login-page.register-mode {
+  --mode-accent: var(--purple);
+  --mode-accent-strong: color-mix(in srgb, var(--purple) 80%, black);
 }
 
 .login-card {
   width: 100%;
   max-width: 380px;
+  border-top: 3px solid var(--mode-accent);
+  transition: border-color var(--transition-fast);
+}
+.login-card .field input:focus {
+  border-color: var(--mode-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mode-accent) 18%, transparent);
+}
+.login-card .toggle-visibility:focus-visible {
+  outline-color: var(--mode-accent);
 }
 
 .logo {
+  display: block;
   font-size: 26px;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--mode-accent);
   text-align: center;
   margin-bottom: 4px;
+  text-decoration: none;
+  transition: color var(--transition-fast);
 }
 .logo span { color: var(--text); }
 
@@ -27,17 +52,27 @@
   margin-bottom: 20px;
 }
 
-.submit { width: 100%; margin-top: 4px; }
+.submit {
+  width: 100%;
+  margin-top: 4px;
+  background: var(--mode-accent);
+  transition: background var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+.submit:hover:not(:disabled) {
+  background: var(--mode-accent-strong);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--mode-accent) 35%, transparent);
+}
 
 .toggle {
   display: block;
   background: none;
   border: none;
-  color: var(--accent);
+  color: var(--mode-accent);
   font-size: 13px;
   cursor: pointer;
   width: 100%;
   margin-top: 14px;
   text-align: center;
   text-decoration: none;
+  transition: color var(--transition-fast);
 }

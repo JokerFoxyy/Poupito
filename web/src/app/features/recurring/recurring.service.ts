@@ -10,8 +10,8 @@ const API = '/api/v1/recurring';
 export class RecurringService {
   private readonly http = inject(HttpClient);
 
-  list(): Observable<Recurring[]> {
-    return this.http.get<Recurring[]>(API);
+  list(archived = false): Observable<Recurring[]> {
+    return this.http.get<Recurring[]>(API, { params: { archived } });
   }
 
   create(payload: RecurringPayload): Observable<Recurring> {
@@ -37,5 +37,14 @@ export class RecurringService {
 
   setPaid(transactionId: string, paid: boolean): Observable<unknown> {
     return this.http.put(`/api/v1/transactions/${transactionId}/paid`, { paid });
+  }
+
+  /** Some da tela principal e dos seletores "Pagar com", mas o histórico é preservado (sessão #42). */
+  archive(id: string): Observable<Recurring> {
+    return this.http.patch<Recurring>(`${API}/${id}/archive`, {});
+  }
+
+  unarchive(id: string): Observable<Recurring> {
+    return this.http.patch<Recurring>(`${API}/${id}/unarchive`, {});
   }
 }

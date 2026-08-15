@@ -18,9 +18,10 @@ describe('Settings', () => {
     fixture.detectChanges();
 
     const httpMock = TestBed.inject(HttpTestingController);
-    // accounts-panel e cards-panel carregam contas; cards-panel carrega cartões; categories-panel carrega categorias
+    // accounts-panel e cards-panel carregam contas; cards-panel carrega cartões (ativos e
+    // arquivados, sessão #42); categories-panel carrega categorias
     httpMock.match('/api/v1/accounts').forEach((req) => req.flush([]));
-    httpMock.expectOne('/api/v1/cards').flush([]);
+    httpMock.match((r) => r.url === '/api/v1/cards').forEach((req) => req.flush([]));
     httpMock.expectOne('/api/v1/categories').flush([]);
 
     const element: HTMLElement = fixture.nativeElement;

@@ -1,9 +1,22 @@
 import { Routes } from '@angular/router';
 
 import { authGuard } from './core/auth/auth.guard';
+import { redirectIfAuthenticatedGuard } from './core/auth/redirect-if-authenticated.guard';
 import { Shell } from './core/layout/shell';
 
 export const routes: Routes = [
+  {
+    // pathMatch: 'full' é essencial — sem isso, este path vazio faria prefix
+    // match e "roubaria" /dashboard, /transacoes etc. do Shell abaixo (sessão #40).
+    path: '',
+    pathMatch: 'full',
+    canActivate: [redirectIfAuthenticatedGuard],
+    loadComponent: () => import('./features/landing/landing').then((m) => m.Landing)
+  },
+  {
+    path: 'faq',
+    loadComponent: () => import('./features/faq/faq').then((m) => m.Faq)
+  },
   {
     path: 'login',
     loadComponent: () => import('./features/auth/login').then((m) => m.Login)

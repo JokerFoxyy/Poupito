@@ -261,19 +261,48 @@ class RecurringServiceTest {
 				category.getId(), "Academia", new BigDecimal("89.90"), TransactionType.EXPENSE, 5, true, null);
 		RecurringTransaction onCard = new RecurringTransaction(userId, null, card.getId(),
 				category.getId(), "Netflix", new BigDecimal("55.90"), TransactionType.EXPENSE, 5, true, null);
-		when(recurringRepository.findAllByUserIdOrderByDescriptionAsc(userId))
+		when(recurringRepository.findAllByUserIdAndArchivedOrderByDescriptionAsc(userId, false))
 				.thenReturn(List.of(onAccount, onCard));
 		when(accountRepository.findByIdAndUserId(account.getId(), userId)).thenReturn(Optional.of(account));
 		when(cardRepository.findByIdAndUserId(card.getId(), userId)).thenReturn(Optional.of(card));
 		when(categoryRepository.findByIdAndUserId(category.getId(), userId)).thenReturn(Optional.of(category));
 
-		List<RecurringResponse> list = service.list(userId);
+		List<RecurringResponse> list = service.list(userId, false);
 
 		assertThat(list).hasSize(2);
 		assertThat(list.getFirst().accountName()).isEqualTo("Uniclass");
 		assertThat(list.getFirst().method()).isEqualTo(PaymentMethod.DEBITO);
 		assertThat(list.getLast().cardName()).isEqualTo("Nubank");
 		assertThat(list.getLast().method()).isEqualTo(PaymentMethod.CREDITO);
+	}
+
+	@Test
+	void shouldArchiveAndUnarchiveRecurring() {
+		Account account = account();
+		Category category = category(CategoryKind.EXPENSE);
+		RecurringTransaction recurring = new RecurringTransaction(userId, account.getId(), null,
+				category.getId(), "Academia", new BigDecimal("89.90"), TransactionType.EXPENSE, 5, true, null);
+		UUID recurringId = UUID.randomUUID();
+		ReflectionTestUtils.setField(recurring, "id", recurringId);
+		when(recurringRepository.findByIdAndUserId(recurringId, userId)).thenReturn(Optional.of(recurring));
+		when(accountRepository.findByIdAndUserId(account.getId(), userId)).thenReturn(Optional.of(account));
+		when(categoryRepository.findByIdAndUserId(category.getId(), userId)).thenReturn(Optional.of(category));
+
+		RecurringResponse archived = service.archive(userId, recurringId);
+		assertThat(archived.archived()).isTrue();
+		assertThat(recurring.isArchived()).isTrue();
+
+		RecurringResponse unarchived = service.unarchive(userId, recurringId);
+		assertThat(unarchived.archived()).isFalse();
+		assertThat(recurring.isArchived()).isFalse();
+	}
+
+	@Test
+	void shouldThrowNotFound_whenArchivingRecurringOfAnotherUser() {
+		UUID recurringId = UUID.randomUUID();
+		when(recurringRepository.findByIdAndUserId(recurringId, userId)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> service.archive(userId, recurringId)).isInstanceOf(NotFoundException.class);
 	}
 
 }

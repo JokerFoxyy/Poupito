@@ -10,9 +10,12 @@ public interface RecurringTransactionRepository extends JpaRepository<RecurringT
 
 	List<RecurringTransaction> findAllByUserIdOrderByDescriptionAsc(UUID userId);
 
+	List<RecurringTransaction> findAllByUserIdAndArchivedOrderByDescriptionAsc(UUID userId, boolean archived);
+
 	Optional<RecurringTransaction> findByIdAndUserId(UUID id, UUID userId);
 
-	List<RecurringTransaction> findAllByActiveTrue();
+	/** Usado só pelo job de materialização — arquivado nunca gera ocorrência nova (sessão #42). */
+	List<RecurringTransaction> findAllByActiveTrueAndArchivedFalse();
 
 	void deleteByUserId(UUID userId);
 

@@ -15,6 +15,7 @@ export interface Card {
   accountName: string | null;
   closingDay: number;
   dueDay: number;
+  archived: boolean;
 }
 
 export interface Category {
