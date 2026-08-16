@@ -125,6 +125,13 @@ Base técnica já pronta pra estender: `ThemeService` já troca `data-theme` + p
 Pontos a refinar: temas hardcoded no frontend vs. configuráveis no backend; UI de seleção (galeria com preview); acessibilidade (contraste WCAG AA em cada tema novo); persistência (localStorage vs. backend).
 Pré-req: nenhum tecnicamente; recomendado rodar depois da #33 (já concluída).
 
+**#45 — Refino visual da Landing (identidade forte)** 📋 PLANEJADA (pedido do usuário 2026-08-14, a partir de review com a skill `frontend-design`)
+
+Motivação: review visual do projeto (skill `frontend-design`) concluiu que o app em geral já foge do "AI slop" óbvio (fonte Manrope em vez de Inter, sem gradiente roxo, sistema de tokens/motion já existente desde a #33) — mas a **Landing** (#40) ainda segue o padrão mais genérico de landing gerada por IA: hero centralizado + grid simétrico de 3 colunas, ícones em emoji, fundo 100% chapado sem atmosfera, título e corpo na mesma fonte só variando peso.
+Decisão de escopo: só a **Landing pública** (`features/landing/`) — o app autenticado (dashboard, transações etc.) deve continuar limpo/utilitário de propósito (ferramenta de uso diário pede restraint, não é o caso de aplicar a mesma expressividade).
+Tasks a refinar: (1) trocar os ícones emoji dos feature cards por SVG inline (mesmo padrão do shell/olho de senha, sessão #29/#33), usando `--accent`; (2) quebrar a simetria do hero — layout assimétrico (texto + preview estático do dashboard/gráfico, com leve overlap), em vez de tudo centralizado; (3) dar atmosfera ao fundo só da Landing (gradiente mesh sutil ou textura de grão nas cores da marca, sem introduzir cor nova fora da paleta); (4) considerar um par tipográfico (display + corpo) pro hero, se não pesar no `--font-display` custo de carregamento; (5) animação de entrada orquestrada (stagger reveal com `animation-delay` crescente no header/hero/cards), respeitando `prefers-reduced-motion` (padrão já estabelecido em `styles.css`); (6) testes web (Karma ≥90/80/90/90) + verificação visual nos 2 temas e mobile.
+Pré-req: #40 (Landing existente) ✅ e #33 (tokens/motion base) ✅ — ambas concluídas.
+
 ### Sessões que precisam de mais conversa antes de virar SDD
 
 **#31 — Empréstimos a pessoas / "a receber" (dívidas de terceiros com você)** 📋 PLANEJADA — ⚠️ precisa de mais refinamento (usuário, 2026-07-26)

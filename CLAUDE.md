@@ -12,6 +12,32 @@ Antes de implementar qualquer coisa, leia:
 - `../spec-app-financeiro.md` (fora do repo, na pasta pai) — spec completa com modelo de dados e fases.
 - `../prototipo-dashboard.html` — protótipo visual de referência (tema dark, layout, gráficos).
 
+## Pendências manuais do usuário (checar/lembrar em toda sessão)
+
+Ações que só o usuário pode executar (conta AWS, domínio, pagamento) — nenhuma requer código,
+mas todo agent deve perguntar o status até o usuário confirmar feito. Atualizar esta lista
+(riscar o item) assim que confirmado, é a única fonte de verdade sobre isso — não depender de
+memória entre sessões de nenhum agent específico.
+
+- [ ] **SES de verdade** + `MAIL_ENABLED=true` em produção — passo a passo em
+      `D:\Docs\Poupito\setup-ses-email.md` (fora do repo). Até configurar, emails (reset de
+      senha etc.) só logam o link (`LoggingEmailSender`, ver seção "Email" abaixo).
+- [ ] **Alarmes CloudWatch** (SNS + Metric Filter pra lockout de login) — logs já vão pro
+      CloudWatch (região us-east-1), falta só o alarme. Runbook:
+      `D:\Docs\Poupito\runbook-sessao-24-observabilidade-hardening.md`, parte 1.5.
+- [ ] **Cloudflare** na frente de `poupito.com` (WAF/DDoS grátis na borda) — não confundir com
+      `poupito.net`, que não é do usuário. Runbook: mesmo arquivo acima, seção 2, +
+      `D:\Docs\Poupito\ssl-certificado-tls.md`.
+- [ ] **fail2ban** no SSH da instância Lightsail — runbook acima, seção 3.
+- [ ] **Registro de marca "Poupito" no INPI** (busca de anterioridade → classe 9/36 →
+      e-Marcas/gov.br → GRU → publicação RPI → exame) — nenhum passo dado ainda.
+
+Ver também `infra/README.md` (deploy/infra em geral) e a seção "Deploy AWS" abaixo.
+**Gotcha de deploy**: ao rodar o workflow `Deploy` manualmente após um merge em `main`,
+confirmar antes que `ci-api.yml`/`ci-web.yml` já terminaram de publicar a imagem nova no GHCR
+(`gh run list --workflow=ci-api.yml --limit 1`) — senão `docker compose pull` pega a tag
+antiga e sobe código velho sem erro nenhum no processo (ver gotcha detalhado mais abaixo).
+
 ## Fluxo de trabalho (SDD)
 
 O desenvolvimento é organizado em sessões numeradas (mesmo padrão do projeto ContratoIA). Ao iniciar a sessão #NN:
@@ -319,6 +345,25 @@ zumbi antes de rodar verificação manual depois de uma pausa longa.
 - `.github/workflows/deploy.yml` é **manual** (`workflow_dispatch`, não a cada merge) — conecta via SSH (secrets `DEPLOY_HOST`/`DEPLOY_USER`/`DEPLOY_SSH_KEY`, configurados pelo próprio usuário via `gh secret set`, nunca coladas numa sessão de IA).
 - Backup: `infra/scripts/backup.sh` (pg_dump → gzip → S3, cron no host) com lifecycle de 30 dias no bucket (`configure-s3-lifecycle.sh`, roda uma vez). Swap de 2GB e clone do repo: `infra/scripts/setup-host.sh` (roda uma vez na instância nova).
 - Passo a passo completo (domínio, DNS, criação da instância, secrets) em `infra/README.md` — são passos manuais que só o usuário pode executar (conta AWS, pagamento, DNS).
+
+## Gotcha: deploy manual disparado antes da imagem terminar de publicar (2026-08-15)
+
+`deploy.yml` só faz `pull` + `up -d` — **não builda nada** e **não espera** o `ci-api.yml`/
+`ci-web.yml` do merge em `main` terminarem de publicar a imagem nova no GHCR (esses workflows
+sobem em paralelo, disparados pelo mesmo push). Se o `Deploy` for disparado manualmente logo
+depois de mergear o PR de release, antes do `ci-api.yml` concluir, `docker compose pull` pega
+a tag `:latest` **ainda apontando pra imagem antiga** — o container sobe com o jar de antes do
+merge, sem estar quebrado (não dá erro nenhum no processo de deploy), só rodando código velho.
+Sintoma: endpoint novo devolve **500 `NoResourceFoundException`** ("No static resource ...") em
+vez de 404/funcionar — o Spring nem reconhece a rota porque ela não existe naquele jar. Query
+params novos em endpoints que já existiam (ex. `?archived=`) são simplesmente **ignorados**
+pelo código antigo, sem erro nenhum, o que mascara ainda mais o sintoma (parece filtro
+quebrado, não versão errada). Aconteceu na prática: PR #73 (release #42) mergeado às 00:11:30,
+`ci-api.yml` só terminou de publicar às 00:15:37, mas o `Deploy` foi disparado às 00:14:32 — 1
+minuto cedo demais. **Antes de rodar `Deploy` manualmente, confirmar que `ci-api.yml` E
+`ci-web.yml` do commit mais recente de `main` já estão com `conclusion: success`**
+(`gh run list --workflow=ci-api.yml --limit 1` / `ci-web.yml`) — senão só re-rodar `Deploy`
+depois que os dois terminarem resolve, sem precisar de mudança de código nenhuma.
 
 ## Observabilidade + Hardening (sessão #24)
 
